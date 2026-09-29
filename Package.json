@@ -1,0 +1,13 @@
+{
+  "name": "consent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "My Consent portal: static pages, SLT proxy, and MongoDB consent timeline",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.8.0"
+  }
+}

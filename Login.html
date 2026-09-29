@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SLT Mobitel - Sign In</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root{--navy-dark:#081f45;--panel:#123a75;--text-faint:#9fb3d6}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--navy-dark);min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+body::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;background:linear-gradient(90deg,#7a2b2b,#4a1414)}
+.deco{position:absolute;width:60px;height:6px;background:linear-gradient(90deg,#2196f3,#3ecf6e);border-radius:4px;transform:rotate(-45deg);opacity:.85}
+.card{display:flex;width:900px;max-width:92vw;background:var(--panel);border-radius:6px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);z-index:2}
+.visual{flex:1.05;background:#05203b linear-gradient(160deg,#0a3d67,#04182e);min-height:520px;overflow:hidden}
+.visual img{width:100%;height:100%;object-fit:cover;display:block}
+.form-side{flex:1;padding:44px 42px;display:flex;flex-direction:column;color:#fff}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.mark{width:26px;height:26px;background:linear-gradient(180deg,#2196f3,#3ecf6e);clip-path:polygon(0 100%,40% 0,60% 0,20% 100%)}
+.word{font-size:20px;font-weight:800;letter-spacing:.5px}.word span{color:#3ecf6e}
+.tag{font-size:10px;color:var(--text-faint);margin:0 0 28px 36px}
+h1{font-size:20px;margin:0 0 22px}
+.field{border-bottom:1px solid rgba(255,255,255,.18);padding:10px 2px 12px}
+.field label{font-size:12px;color:var(--text-faint)}.req{color:#ff6666}
+.field input{width:100%;background:transparent;border:none;outline:none;color:#fff;font-size:15px;padding:4px 0 2px}
+.field input::placeholder{color:#7c93bd}
+.pw{display:flex;align-items:flex-end;justify-content:space-between}.pw-wrap{flex:1}
+.eye{background:none;border:none;cursor:pointer;color:var(--text-faint);font-size:16px;padding-bottom:6px}
+.error-msg{color:#ff8a8a;font-size:12px;margin-top:6px;min-height:14px}
+.success-msg{color:#8effb0;font-size:13px;margin-top:10px;text-align:center;display:none}
+.row{display:flex;align-items:center;justify-content:space-between;margin-top:22px}
+.forgot{color:var(--text-faint);font-size:13px;cursor:pointer}.forgot:hover{text-decoration:underline}
+.signin-btn{background:#2f7fe0;color:#fff;border:none;border-radius:6px;padding:11px 30px;font-size:14px;font-weight:600;cursor:pointer}
+.signin-btn:hover{background:#2668c2}.signin-btn:disabled{opacity:.6;cursor:wait}
+.divider{display:flex;align-items:center;gap:12px;margin:26px 0 18px;color:var(--text-faint);font-size:12px}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.15)}
+.social{display:flex;gap:14px}
+.social button{width:44px;height:44px;border-radius:6px;border:none;background:#fff;cursor:pointer;font-weight:700;font-size:18px}
+.g{color:#ea4335}.f{color:#1877f2}
+.register{margin-top:auto;padding-top:20px;font-size:13px;color:var(--text-faint)}
+.register a{color:#4da3ff;text-decoration:none;font-weight:600}
+@media(max-width:720px){.card{flex-direction:column;width:94vw}.visual{min-height:260px}}
+</style>
+</head>
+<body>
+<div class="deco" style="top:6%;left:88%"></div><div class="deco" style="top:40%;left:92%"></div>
+<div class="deco" style="top:2%;left:4%"></div><div class="deco" style="top:85%;left:8%"></div>
+
+<div class="card">
+  <div class="visual"><img src="images/fibreon-banner.png" alt="SLT Mobitel Fibre" onerror="this.style.display='none'"></div>
+  <div class="form-side">
+    <div class="logo"><div class="mark"></div><div class="word">SLT<span>MOBITEL</span></div></div>
+    <div class="tag">The Connection</div>
+    <h1>Sign In</h1>
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label for="userId">User ID <span class="req">*</span></label>
+        <input type="text" id="userId" placeholder="Email or mobile number" autocomplete="username">
+      </div>
+      <div class="field pw">
+        <div class="pw-wrap">
+          <label for="password">Password <span class="req">*</span></label>
+          <input type="password" id="password" placeholder="Minimum 6 characters" autocomplete="current-password">
+        </div>
+        <button type="button" class="eye" id="toggleEye" aria-label="Show password">👁</button>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+      <div class="row">
+        <a class="forgot" id="forgotLink">Forgot Password ?</a>
+        <button type="submit" class="signin-btn">Sign In</button>
+      </div>
+      <div class="success-msg" id="successMsg"></div>
+    </form>
+    <div class="divider">Or Sign In With</div>
+    <div class="social"><button class="g" title="Google">G</button><button class="f" title="Facebook">f</button></div>
+    <div class="register">Don't have an account? <a href="#" id="registerLink">Register</a></div>
+  </div>
+</div>
+
+<script>
+  // =========================================================
+  // API CONFIG
+  // Empty string = same-origin. The browser calls
+  // http://localhost:5500/api/v1/auth/login, which your
+  // Node server (proxy.js) forwards server-side to
+  // https://dpdlab1.slt.lk:9000/api/v1/auth/login.
+  // This avoids CORS entirely, since the preflight/browser
+  // never talks to dpdlab1.slt.lk directly.
+  // =========================================================
+  const API_BASE = '';
+  const LOGIN_URL = `${API_BASE}/api/v1/auth/login`;
+
+  const form = document.getElementById('loginForm');
+  const userId = document.getElementById('userId');
+  const password = document.getElementById('password');
+  const errorMsg = document.getElementById('errorMsg');
+  const successMsg = document.getElementById('successMsg');
+  const toggleEye = document.getElementById('toggleEye');
+
+  // already signed in? go straight to home
+  if (sessionStorage.getItem('customerToken')) window.location.replace('homescreen.html');
+
+  toggleEye.addEventListener('click', () => {
+    const isPw = password.type === 'password';
+    password.type = isPw ? 'text' : 'password';
+    toggleEye.textContent = isPw ? '🙈' : '👁';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorMsg.textContent = '';
+    successMsg.style.display = 'none';
+
+    const idVal = userId.value.trim();
+    const pwVal = password.value;
+    if (!idVal) { errorMsg.textContent = 'Please enter your email or mobile number.'; userId.focus(); return; }
+    if (pwVal.length < 6) { errorMsg.textContent = 'Password must be at least 6 characters.'; password.focus(); return; }
+
+    const btn = form.querySelector('.signin-btn');
+    btn.disabled = true;
+    try {
+      const res = await fetch(LOGIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ email: idVal, password: pwVal })
+      });
+
+      let j = {};
+      try { j = await res.json(); } catch (_) { /* non-JSON body */ }
+
+      if (res.status === 400 || res.status === 401) throw new Error(j.message || 'Incorrect user ID or password.');
+      if (!res.ok) throw new Error(j.message || ('Sign in failed (status ' + res.status + ').'));
+
+      const token = j.token || j.accessToken || j.access_token ||
+                    (j.data && (j.data.token || j.data.accessToken || j.data.access_token)) || '';
+      if (!token) throw new Error('Login worked but no token was returned.');
+
+      sessionStorage.setItem('customerToken', token);
+      successMsg.style.display = 'block';
+      successMsg.textContent = 'Signed in successfully! Redirecting...';
+      setTimeout(() => { window.location.href = 'homescreen.html'; }, 500);
+    } catch (err) {
+      errorMsg.textContent = (err instanceof TypeError)
+        ? 'Cannot reach the server. Make sure the proxy (proxy.js) is running on port 5500.'
+        : err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('forgotLink').addEventListener('click', e => { e.preventDefault(); alert('Forgot password flow goes here.'); });
+  document.getElementById('registerLink').addEventListener('click', e => { e.preventDefault(); alert('Register flow goes here.'); });
+</script>
+</body>
+</html>

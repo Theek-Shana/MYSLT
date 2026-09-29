@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>My Consent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-1:#060a17; --bg-2:#0c1430;
+    --glass:rgba(255,255,255,0.05); --glass-border:rgba(255,255,255,0.10);
+    --accent:#3ecf6e; --accent-2:#2f8fe0;
+    --text:#eef2ff; --text-dim:#9aabd3; --text-faint:#6a7ba6;
+    --danger:#ff6b6b; --warn:#ffd27a;
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; font-family:'Plus Jakarta Sans',Arial,sans-serif; color:var(--text); min-height:100vh;
+    background:
+      radial-gradient(900px 520px at 92% -10%, rgba(47,143,224,0.22), transparent 60%),
+      radial-gradient(700px 520px at -10% 8%, rgba(62,207,110,0.15), transparent 55%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-2)) fixed;
+  }
+
+  /* top bar */
+  .topbar{
+    display:flex; align-items:center; gap:16px; padding:14px 32px;
+    backdrop-filter:blur(14px); background:rgba(7,11,26,0.72);
+    border-bottom:1px solid var(--glass-border); position:sticky; top:0; z-index:20;
+  }
+  .back-btn{
+    background:var(--glass); border:1px solid var(--glass-border); color:var(--text);
+    padding:9px 16px; border-radius:11px; cursor:pointer; font:600 13px 'Plus Jakarta Sans',Arial,sans-serif; transition:.15s;
+  }
+  .back-btn:hover{background:rgba(255,255,255,0.12); transform:translateY(-1px);}
+  .brand{font-weight:800; font-size:19px; letter-spacing:.3px;}
+  .brand span{color:var(--accent);}
+  .spacer{flex:1;}
+
+  /* hero */
+  .hero{max-width:1040px; margin:48px auto 0; padding:0 28px;}
+  .hero h1{
+    font-size:34px; font-weight:800; margin:0 0 10px; letter-spacing:-.4px;
+    background:linear-gradient(90deg,#fff,#a9c6ff); -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .hero p{color:var(--text-dim); font-size:14.5px; max-width:620px; line-height:1.6; margin:0;}
+
+  .wrap{max-width:1040px; margin:34px auto 60px; padding:0 28px; display:flex; gap:28px; align-items:flex-start;}
+
+  /* tabs */
+  .side-tabs{flex:0 0 240px; display:flex; flex-direction:column; gap:10px; position:sticky; top:90px;}
+  .tab-btn{
+    background:var(--glass); border:1px solid var(--glass-border); color:var(--text-dim);
+    text-align:left; padding:15px 16px; border-radius:15px; font:700 14px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer;
+    display:flex; align-items:center; gap:10px; transition:.18s;
+  }
+  .tab-btn .tag{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:rgba(255,255,255,0.10); color:var(--text-dim);}
+  .tab-btn .count{
+    margin-left:auto; min-width:26px; text-align:center; font-size:12px; font-weight:800;
+    padding:3px 8px; border-radius:20px; background:rgba(255,255,255,0.10);
+  }
+  .tab-btn.active{
+    background:linear-gradient(90deg,#1e63c9,#2f8fe0); color:#fff; border-color:transparent;
+    box-shadow:0 12px 30px -10px rgba(33,150,243,0.6);
+  }
+  .tab-btn.active .tag,.tab-btn.active .count{background:rgba(255,255,255,0.25); color:#fff;}
+  .tab-btn:hover:not(.active){background:rgba(255,255,255,0.09); transform:translateX(2px);}
+
+  .content-col{flex:1; min-width:0;}
+  .consent-panel{display:none;}
+  .consent-panel.active{display:flex; flex-direction:column; gap:16px;}
+
+  /* consent card */
+  .consent-item{
+    position:relative; overflow:hidden;
+    background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
+    border:1px solid var(--glass-border); border-radius:var(--radius);
+    padding:22px 24px 22px 28px; backdrop-filter:blur(6px);
+    transition:.2s; animation:rise .4s ease both;
+  }
+  .consent-item::before{content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--text-faint);}
+  .consent-item.s-on::before{background:var(--accent);}
+  .consent-item.s-pending::before{background:var(--warn);}
+  .consent-item.s-off::before{background:var(--danger);}
+  .consent-item:hover{border-color:rgba(255,255,255,0.2); transform:translateY(-3px); box-shadow:0 18px 40px -22px rgba(0,0,0,0.7);}
+  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);}}
+
+  .card-head{display:flex; align-items:center; gap:14px; margin-bottom:12px;}
+  .c-icon{
+    flex:0 0 44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg,rgba(47,143,224,0.25),rgba(62,207,110,0.2)); border:1px solid var(--glass-border);
+  }
+  .c-icon svg{width:22px; height:22px; stroke:#bfe3ff; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
+  .c-title{min-width:0;}
+  .c-title h3{margin:0 0 6px; font-size:17px; font-weight:700; line-height:1.25;}
+  .tags{display:flex; gap:6px; flex-wrap:wrap;}
+  .c-desc{margin:0 0 16px; font-size:13.5px; color:var(--text-dim); max-width:620px; line-height:1.6;}
+
+  .detail-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px 20px;
+    margin-bottom:18px; padding:14px 16px; border-radius:13px;
+    background:rgba(4,8,20,0.35); border:1px solid rgba(255,255,255,0.06);
+  }
+  .detail{display:flex; flex-direction:column; font-size:12px; min-width:0;}
+  .detail .dlabel{color:var(--text-faint); font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px;}
+  .detail .dval{color:var(--text); font-weight:700; overflow-wrap:anywhere;}
+
+  .lock-tag{font-size:10px; font-weight:700; color:var(--warn); background:rgba(255,210,122,0.14); padding:3px 10px; border-radius:20px;}
+  .status-tag{font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,0.10); color:#fff; text-transform:capitalize;}
+  .status-tag.on{background:rgba(62,207,110,0.18); color:var(--accent);}
+  .status-tag.pending{background:rgba(255,210,122,0.18); color:var(--warn);}
+
+  /* accept / decline */
+  .choice-row{display:flex; gap:10px;}
+  .choice-btn{
+    border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-dim);
+    padding:10px 26px; border-radius:11px; font:700 13px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer; transition:.15s;
+  }
+  .choice-btn:hover{background:rgba(255,255,255,0.12); color:#fff;}
+  .choice-btn.accept.selected{background:var(--accent); color:#04280f; border-color:var(--accent); box-shadow:0 8px 22px -8px rgba(62,207,110,0.65);}
+  .choice-btn.decline.selected{background:var(--danger); color:#3a0000; border-color:var(--danger); box-shadow:0 8px 22px -8px rgba(255,107,107,0.65);}
+  .choice-btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  /* verify popup */
+  .verify-panel{
+    display:none; position:fixed; inset:0; z-index:50; padding:20px;
+    background:rgba(3,6,16,0.72); backdrop-filter:blur(7px);
+    align-items:center; justify-content:center; overflow-y:auto;
+  }
+  .verify-panel.open{display:flex;}
+  .verify-card{
+    position:relative; width:100%; max-width:460px;
+    background:linear-gradient(180deg,#131c3d,#0d1530); border:1px solid rgba(62,207,110,0.35);
+    border-radius:22px; padding:32px; box-shadow:0 40px 80px -20px rgba(0,0,0,0.7); animation:pop .25s ease both;
+  }
+  @keyframes pop{from{opacity:0; transform:scale(.96) translateY(8px);} to{opacity:1; transform:none;}}
+  .modal-close{
+    position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
+    border:1px solid var(--glass-border); background:var(--glass); color:var(--text-dim); cursor:pointer; font-size:14px;
+  }
+  .modal-close:hover{background:rgba(255,255,255,0.14); color:#fff;}
+  .verify-card h2{font-size:19px; margin:0 0 6px; font-weight:800;}
+  .verify-card p.sub{color:var(--text-dim); font-size:13px; line-height:1.5; margin:0 0 22px;}
+
+  .method-toggle{display:flex; gap:6px; margin-bottom:20px; padding:4px; border-radius:12px; background:rgba(255,255,255,0.05);}
+  .method-toggle button{
+    flex:1; padding:10px 0; border-radius:9px; border:none; background:transparent; color:var(--text-dim);
+    font:700 13px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer; transition:.15s;
+  }
+  .method-toggle button.active{background:linear-gradient(90deg,#1e63c9,#2f8fe0); color:#fff;}
+
+  .field{margin-bottom:16px;}
+  .field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px;}
+  .field input{
+    width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:11px;
+    padding:13px 14px; color:#fff; font-size:14px; outline:none; transition:.15s; font-family:inherit;
+  }
+  .field input:focus{border-color:var(--accent-2); background:rgba(255,255,255,0.08); box-shadow:0 0 0 3px rgba(47,143,224,0.2);}
+  .field input::placeholder{color:#5f739e;}
+
+  .otp-section{display:none;}
+  .otp-section.open{display:block;}
+  .otp-row{display:flex; gap:8px; justify-content:center; margin-bottom:16px;}
+  .otp-row input{
+    width:44px; height:52px; text-align:center; font-size:20px; font-weight:700; font-family:inherit;
+    background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:11px; color:#fff; outline:none;
+  }
+  .otp-row input:focus{border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(47,143,224,0.2);}
+
+  .primary-btn{
+    width:100%; background:linear-gradient(90deg,#2f7fe0,#3ecf6e); color:#04280f;
+    border:none; border-radius:11px; padding:13px 0; font:800 14px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer;
+    transition:.15s; letter-spacing:.2px;
+  }
+  .primary-btn:hover{filter:brightness(1.08); transform:translateY(-1px);}
+  .link-btn{background:none; border:none; color:#7db8ff; font-size:12px; cursor:pointer; display:block; margin:12px auto 0; font-family:inherit;}
+  .link-btn:hover{text-decoration:underline;}
+  .error-msg{color:#ff8a8a; font-size:12px; margin:0 0 10px; min-height:14px;}
+
+  .success-box{display:none; text-align:center;}
+  .success-box.open{display:block;}
+  .success-icon{
+    width:62px; height:62px; border-radius:50%; background:rgba(62,207,110,0.15); color:var(--accent);
+    font-size:30px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;
+  }
+
+  .empty-msg{color:var(--text-faint); font-size:13px; padding:20px 4px;}
+
+  @media (max-width:760px){
+    .topbar{padding:12px 16px;}
+    .hero{margin-top:30px; padding:0 18px;} .hero h1{font-size:28px;}
+    .wrap{flex-direction:column; padding:0 18px;}
+    .side-tabs{flex-direction:row; flex:none; position:static; width:100%;}
+    .tab-btn{flex:1; justify-content:center; padding:13px 10px;}
+    .tab-btn .tag{display:none;}
+    .consent-item{padding:18px 18px 18px 22px;}
+    .choice-btn{flex:1;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="back-btn" onclick="window.location.href='homescreen.html'">← Back</button>
+  <div class="brand">SLT<span>MOBITEL</span></div>
+  <div class="spacer"></div>
+  <button class="back-btn" id="logoutBtn" style="display:none;">Logout</button>
+</div>
+
+<div class="hero">
+  <h1>My Consent</h1>
+  <p>Review each item and choose Accept or Decline. Accepting any item will prompt you to verify your contact details below.</p>
+</div>
+
+<div class="wrap" id="consentView" style="display:none;">
+  <div class="side-tabs">
+    <button class="tab-btn active" id="tabMandatoryBtn">
+      Mandatory <span class="tag">Required</span><span class="count" id="countMandatory"></span>
+    </button>
+    <button class="tab-btn" id="tabOtherBtn">
+      Other Consents <span class="tag">Optional</span><span class="count" id="countOther"></span>
+    </button>
+  </div>
+
+  <div class="content-col">
+    <div id="loadingMsg" class="empty-msg">Loading your consents…</div>
+    <div id="loadErrorMsg" style="display:none;color:#ff8a8a;font-size:13px;padding:10px 2px;"></div>
+    <div class="consent-panel active" id="panelMandatory"></div>
+    <div class="consent-panel" id="panelOther"></div>
+  </div>
+</div>
+
+<div class="verify-panel" id="verifyPanel">
+  <div class="verify-card">
+    <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    <div id="contactBox">
+      <h2>Verify Your Contact Details</h2>
+      <p class="sub" id="verifyForLabel">To confirm this consent, verify your registered contact details.</p>
+      <div class="method-toggle">
+        <button class="active" id="methodPhoneBtn">Mobile Number</button>
+        <button id="methodEmailBtn">Email</button>
+      </div>
+      <div class="field" id="phoneField">
+        <label for="phoneInput">Registered Mobile Number</label>
+        <input type="tel" id="phoneInput" placeholder="07XXXXXXXX">
+      </div>
+      <div class="field" id="emailField" style="display:none;">
+        <label for="emailInput">Registered Email Address</label>
+        <input type="email" id="emailInput" placeholder="you@example.com">
+      </div>
+      <div class="error-msg" id="contactError"></div>
+      <button class="primary-btn" id="sendOtpBtn">Send OTP</button>
+    </div>
+
+    <div class="otp-section" id="otpSection">
+      <p class="sub" id="otpSentTo" style="margin-bottom:14px;">We've sent a 6-digit code to your registered contact.</p>
+      <div class="otp-row">
+        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric">
+      </div>
+      <div class="error-msg" id="otpError"></div>
+      <button class="primary-btn" id="confirmOtpBtn">Confirm</button>
+      <button class="link-btn" id="resendBtn">Resend OTP</button>
+    </div>
+
+    <div class="success-box" id="successBox">
+      <div class="success-icon">✓</div>
+      <h2>Consent Confirmed</h2>
+      <p class="sub">Your choice for "<span id="successItemName"></span>" has been verified and saved.</p>
+      <button class="primary-btn" id="closeVerifyBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // =========================================================
+  // CONFIG — no secrets here. Edit only these values.
+  // =========================================================
+  const CONSENTS_GET_URL = '/api/v1/customer/consents';
+
+  // Endpoint that saves Accept/Decline ({id} = customerConsentId). Must be created on the ConsentHub API.
+  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
+
+  // Fallback only, used if the API has no "mandatory" field for a consent.
+  const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
+
+  // TEMPORARY: used only when the API sends no longer description.
+  // Remove once /api/v1/customer/consents returns the full scope description.
+  const DESCRIPTION_FALLBACK = {
+    'TNC_001': "I have read and agree to SLT's Terms & Conditions governing the provision, use, and billing of my service(s).",
+    'PRIV_001': "I have read and agree to SLT's Privacy Policy and consent to SLT collecting, storing, and processing my personal data to provide and manage my service(s).",
+    'TNC_FAIR_USE': "I agree to comply with SLT's Fair Usage Policy applicable to my service plan.",
+    'PRIV_DATA_RETENTION': "I understand SLT will retain my personal data for the duration required by law/regulation after service termination."
+  };
+
+  // =========================================================
+  // helpers
+  // =========================================================
+  const esc = s => String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const pick = (o, keys) => { for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k]; return ''; };
+
+  function getToken() { return sessionStorage.getItem('customerToken') || ''; }
+
+  function fmtDate(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    return isNaN(d) ? String(v) : d.toLocaleDateString('en-GB');
+  }
+
+  function extractList(json) {
+    if (Array.isArray(json)) return json;
+    const d = json && (json.data ?? json);
+    if (Array.isArray(d)) return d;
+    for (const k of ['consents', 'items', 'results', 'records', 'catalog']) {
+      if (d && Array.isArray(d[k])) return d[k];
+    }
+    return [];
+  }
+
+  // Scans the record (including nested objects such as "scope") for any
+  // description-like field and returns the longest text found.
+  function findDescription(r) {
+    const found = [];
+    const scan = (o) => {
+      if (!o || typeof o !== 'object') return;
+      for (const [k, v] of Object.entries(o)) {
+        if (typeof v === 'string' && /desc|statement|consenttext/i.test(k)) found.push(v);
+        else if (v && typeof v === 'object' && !Array.isArray(v)) scan(v);
+      }
+    };
+    scan(r);
+    return found.sort((a, b) => b.length - a.length)[0] || '';
+  }
+
+  // =========================================================
+  // views (login happens on login.html; this page only reads the saved token)
+  // =========================================================
+  const consentView = document.getElementById('consentView');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const verifyPanel = document.getElementById('verifyPanel');
+
+  function goToLogin() {
+    sessionStorage.removeItem('customerToken');
+    window.location.replace('login.html');
+  }
+  function showConsents() {
+    consentView.style.display = 'flex';
+    logoutBtn.style.display = 'inline-block';
+  }
+  logoutBtn.addEventListener('click', goToLogin);
+
+  // =========================================================
+  // tabs
+  // =========================================================
+  const tabMandatoryBtn = document.getElementById('tabMandatoryBtn');
+  const tabOtherBtn = document.getElementById('tabOtherBtn');
+  const panelMandatory = document.getElementById('panelMandatory');
+  const panelOther = document.getElementById('panelOther');
+
+  tabMandatoryBtn.addEventListener('click', () => {
+    tabMandatoryBtn.classList.add('active'); tabOtherBtn.classList.remove('active');
+    panelMandatory.classList.add('active'); panelOther.classList.remove('active');
+  });
+  tabOtherBtn.addEventListener('click', () => {
+    tabOtherBtn.classList.add('active'); tabMandatoryBtn.classList.remove('active');
+    panelOther.classList.add('active'); panelMandatory.classList.remove('active');
+  });
+
+  // =========================================================
+  // build cards from the API records
+  // =========================================================
+  function normalise(r) {
+    const scope = (r.scope && typeof r.scope === 'object') ? r.scope
+                : (r.consentScope && typeof r.consentScope === 'object') ? r.consentScope
+                : (r.catalog && typeof r.catalog === 'object') ? r.catalog
+                : {};
+    const merged = { ...scope, ...r };
+
+    const scopeId = pick(merged, ['scopeId', 'scope_id', 'consentScopeId']);
+    const code = pick(merged, ['scopeCode', 'code', 'consentCode']);
+    const consentType = pick(merged, ['consentType', 'categoryName', 'category']);
+    const name = pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
+    const status = String(pick(merged, ['status', 'consentStatus', 'customerStatus'])).toUpperCase();
+    const active = pick(merged, ['active', 'isActive']);
+    let mandatory = pick(merged, ['mandatory', 'isMandatory']);
+    if (mandatory === '') mandatory = MANDATORY_CONSENT_CODES.includes(code);
+    return {
+      id: pick(merged, ['customerConsentId', 'consentId', 'id']) || scopeId,
+      scopeId, code, name, consentType, status,
+      active: active === '' ? null : (active === true || active === 'true' || active === 'Active'),
+      mandatory: mandatory === true || mandatory === 1 ||
+                 ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
+      description: (() => {
+        const fromApi = findDescription(r);
+        const fb = DESCRIPTION_FALLBACK[code] || DESCRIPTION_FALLBACK[scopeId] || '';
+        return fb.length > fromApi.length ? fb : fromApi;
+      })(),
+      version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
+      effectiveFrom: pick(merged, ['effectiveFrom', 'validFrom', 'grantedAt', 'createdAt']),
+      effectiveTo: pick(merged, ['effectiveTo', 'validTo', 'expiresAt'])
+    };
+  }
+
+  function buildConsentCard(raw) {
+    const c = normalise(raw);
+    const accepted = ['GRANTED', 'ACTIVE', 'ACCEPTED'].includes(c.status);
+    const declined = ['REVOKED', 'DENIED', 'DECLINED', 'WITHDRAWN'].includes(c.status);
+    const statusClass = accepted ? 'on' : (declined ? '' : 'pending');
+    const statusLabel = c.status.replace(/_/g, ' ').toLowerCase();
+
+    const item = document.createElement('div');
+    item.className = 'consent-item ' + (accepted ? 's-on' : declined ? 's-off' : 's-pending');
+    item.dataset.consentId = c.id;
+    item.dataset.consentCode = c.code;
+    item.dataset.consentName = c.name;
+    item.dataset.mandatory = c.mandatory ? '1' : '0';
+
+    const detailRow = (label, value) => value
+      ? `<div class="detail"><span class="dlabel">${esc(label)}</span><span class="dval">${esc(value)}</span></div>` : '';
+
+    item.innerHTML = `
+      <div class="card-head">
+        <div class="c-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <div class="c-title">
+          <h3>${esc(c.name)}</h3>
+          <div class="tags">
+            ${c.mandatory ? '<span class="lock-tag">Mandatory</span>' : ''}
+            ${c.status ? `<span class="status-tag ${statusClass}">${esc(statusLabel)}</span>` : ''}
+            ${c.active === false ? '<span class="status-tag">Inactive</span>' : ''}
+          </div>
+        </div>
+      </div>
+      ${c.description ? `<p class="c-desc">${esc(c.description)}</p>` : ''}
+      <div class="detail-grid">
+        ${detailRow('Consent Type', c.consentType)}
+        ${detailRow('Scope Code', c.code)}
+        ${detailRow('Version', c.version)}
+        ${detailRow('Effective From', fmtDate(c.effectiveFrom))}
+        ${detailRow('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—')}
+      </div>
+      <div class="choice-row">
+        <button class="choice-btn accept ${accepted ? 'selected' : ''}" data-choice="accept">✓ Accept</button>
+        <button class="choice-btn decline ${declined ? 'selected' : ''}" data-choice="decline"
+          ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}>Decline</button>
+      </div>`;
+    return item;
+  }
+
+  // =========================================================
+  // load consents from the API
+  // =========================================================
+  async function loadConsents() {
+    const loadingMsg = document.getElementById('loadingMsg');
+    const loadErrorMsg = document.getElementById('loadErrorMsg');
+    loadingMsg.style.display = 'block';
+    loadErrorMsg.style.display = 'none';
+
+    try {
+      const token = getToken();
+      if (!token) { goToLogin(); return; }
+
+      const res = await fetch(CONSENTS_GET_URL, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
+      });
+
+      if (res.status === 401) { goToLogin(); return; }
+      if (!res.ok) throw new Error('Request failed with status ' + res.status);
+
+      const json = await res.json();
+      // Debug: shows which fields the API really sends. Remove when done.
+      console.log('FIRST RECORD:', JSON.stringify(extractList(json)[0], null, 2));
+      const list = extractList(json);
+
+      panelMandatory.innerHTML = '';
+      panelOther.innerHTML = '';
+      let mCount = 0, oCount = 0;
+
+      list.forEach(record => {
+        const card = buildConsentCard(record);
+        if (card.dataset.mandatory === '1') { panelMandatory.appendChild(card); mCount++; }
+        else { panelOther.appendChild(card); oCount++; }
+      });
+
+      const empty = '<p class="empty-msg">Nothing to show here.</p>';
+      if (!mCount) panelMandatory.innerHTML = empty;
+      if (!oCount) panelOther.innerHTML = empty;
+      document.getElementById('countMandatory').textContent = mCount;
+      document.getElementById('countOther').textContent = oCount;
+
+      loadingMsg.style.display = 'none';
+    } catch (err) {
+      loadingMsg.style.display = 'none';
+      loadErrorMsg.style.display = 'block';
+      loadErrorMsg.textContent = "Couldn't load consents: " + err.message +
+        '. Check the URL, your login, and that the server allows this page (CORS).';
+    }
+  }
+
+  // =========================================================
+  // Accept / Decline
+  // =========================================================
+  let currentItem = null;
+  let currentConsentId = null;
+
+  async function saveChoice(consentId, choice) {
+    const res = await fetch(CONSENT_SAVE_URL.replace('{id}', encodeURIComponent(consentId)), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ action: choice, channel: 'web', source: 'MYSLT_PORTAL' })
+    });
+    if (res.status === 401) { goToLogin(); return; }
+    if (!res.ok) throw new Error('Save failed (' + res.status + ')');
+  }
+
+  const verifyForLabel = document.getElementById('verifyForLabel');
+  const contactBox = document.getElementById('contactBox');
+  const otpSection = document.getElementById('otpSection');
+  const successBox = document.getElementById('successBox');
+
+  function resetVerifyPanel() {
+    contactBox.style.display = 'block';
+    otpSection.classList.remove('open');
+    successBox.classList.remove('open');
+    document.getElementById('phoneInput').value = '';
+    document.getElementById('emailInput').value = '';
+    document.querySelectorAll('.otp-row input').forEach(i => i.value = '');
+    document.getElementById('contactError').textContent = '';
+    document.getElementById('otpError').textContent = '';
+  }
+
+  document.querySelector('.content-col').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.choice-btn');
+    if (!btn || btn.disabled) return;
+
+    const item = btn.closest('.consent-item');
+    const buttons = item.querySelectorAll('.choice-btn');
+    buttons.forEach(b => b.disabled = true);
+    try {
+      await saveChoice(item.dataset.consentId, btn.dataset.choice);
+      await loadConsents();
+    } catch (err) {
+      buttons.forEach(b => { b.disabled = item.dataset.mandatory === '1' && b.dataset.choice === 'decline'; });
+      const errEl = document.getElementById('loadErrorMsg');
+      errEl.style.display = 'block';
+      errEl.textContent = "Couldn't save your choice: " + err.message;
+    }
+  });
+
+  const methodPhoneBtn = document.getElementById('methodPhoneBtn');
+  const methodEmailBtn = document.getElementById('methodEmailBtn');
+  const phoneField = document.getElementById('phoneField');
+  const emailField = document.getElementById('emailField');
+  let activeMethod = 'phone';
+
+  methodPhoneBtn.addEventListener('click', () => {
+    activeMethod = 'phone';
+    methodPhoneBtn.classList.add('active'); methodEmailBtn.classList.remove('active');
+    phoneField.style.display = 'block'; emailField.style.display = 'none';
+  });
+  methodEmailBtn.addEventListener('click', () => {
+    activeMethod = 'email';
+    methodEmailBtn.classList.add('active'); methodPhoneBtn.classList.remove('active');
+    emailField.style.display = 'block'; phoneField.style.display = 'none';
+  });
+
+  let contactValue = '';
+  document.getElementById('sendOtpBtn').addEventListener('click', () => {
+    const errorEl = document.getElementById('contactError');
+    errorEl.textContent = '';
+    if (activeMethod === 'phone') {
+      contactValue = document.getElementById('phoneInput').value.trim();
+      if (!/^0\d{9}$/.test(contactValue)) { errorEl.textContent = 'Enter a valid 10-digit mobile number (e.g. 0771234567).'; return; }
+    } else {
+      contactValue = document.getElementById('emailInput').value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(contactValue)) { errorEl.textContent = 'Enter a valid email address.'; return; }
+    }
+    document.getElementById('otpSentTo').textContent = `We've sent a 6-digit code to ${contactValue}.`;
+    contactBox.style.display = 'none';
+    otpSection.classList.add('open');
+  });
+
+  const otpInputs = document.querySelectorAll('.otp-row input');
+  otpInputs.forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^0-9]/g, '');
+      if (input.value && idx < otpInputs.length - 1) otpInputs[idx + 1].focus();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) otpInputs[idx - 1].focus();
+    });
+  });
+
+  document.getElementById('confirmOtpBtn').addEventListener('click', async () => {
+    const code = Array.from(otpInputs).map(i => i.value).join('');
+    const errorEl = document.getElementById('otpError');
+    if (code.length !== 6) { errorEl.textContent = 'Enter the full 6-digit code.'; return; }
+    errorEl.textContent = '';
+    try {
+      await saveChoice(currentConsentId, 'accept');
+    } catch (e) {
+      errorEl.textContent = 'Could not save your choice. Please try again.';
+      return;
+    }
+    otpSection.classList.remove('open');
+    document.getElementById('successItemName').textContent = currentItem || '';
+    successBox.classList.add('open');
+  });
+
+  document.getElementById('resendBtn').addEventListener('click', () => {
+    otpInputs.forEach(i => i.value = '');
+    otpInputs[0].focus();
+    alert('A new OTP has been sent (demo only).');
+  });
+
+  const closeModal = () => { verifyPanel.classList.remove('open'); loadConsents(); };
+  document.getElementById('closeVerifyBtn').addEventListener('click', closeModal);
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  verifyPanel.addEventListener('click', (e) => { if (e.target === verifyPanel) closeModal(); });
+
+  // =========================================================
+  // start
+  // =========================================================
+  if (getToken()) { showConsents(); loadConsents(); } else { goToLogin(); }
+</script>
+
+</body>
+</html>
