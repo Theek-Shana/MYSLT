@@ -1,21 +1,23 @@
-// server.js — serves your pages, proxies SLT APIs, and saves Accept/Decline + timeline to MongoDB.
+// server.js — serves your pages, verifies the customer's SLT login, and
+// sources the consent list + Accept/Decline from ConsentHub (CMS) instead
+// of a local database. CMS is now the single source of truth for what
+// consents exist and what the customer has decided.
 const http = require('http'), https = require('https'), fs = require('fs'), path = require('path');
-const { MongoClient, ObjectId } = require('mongodb');
 
 // ---------------------------------------------------------------- config
 const TARGET = 'dpdlab1.slt.lk', TARGET_PORT = 9000, PORT = 5500;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
-const DB_NAME = process.env.MONGO_DB || 'consenthub';
 
-// Same fallback the page uses when the API has no "mandatory" field.
-const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
+// ConsentHub (CMS) — the shared consent API at /api/v2/integration/consents.
+// CMS_API_KEY is MySLT's own key, issued in CMS under Recipients (MySLT) ->
+// "Issue API key". Each organisation that integrates gets its own key from
+// that same screen; this app only ever uses its one.
+const CMS_API_BASE = process.env.CMS_API_BASE || 'https://dpdlab1.slt.lk:9000';
+const CMS_API_KEY = process.env.CMS_API_KEY || 'e6b5fbaafbe2e0bdebae867e37e86c033928f38dca949fa8';
 
 const types = {
   '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.ico': 'image/x-icon'
 };
-
-let col = null; // MongoDB collection: consentChoices
 
 // ---------------------------------------------------------------- small helpers
 const pick = (o, keys) => { for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k]; return ''; };
@@ -50,27 +52,6 @@ function findArray(json) {
   return null;
 }
 
-// Same id logic as the page (customerConsentId, else scopeId).
-function recordView(r) {
-  const scope = (r.scope && typeof r.scope === 'object') ? r.scope
-              : (r.consentScope && typeof r.consentScope === 'object') ? r.consentScope
-              : (r.catalog && typeof r.catalog === 'object') ? r.catalog : {};
-  const m = { ...scope, ...r };
-  const scopeId = pick(m, ['scopeId', 'scope_id', 'consentScopeId']);
-  const code = pick(m, ['scopeCode', 'code', 'consentCode']);
-  let mandatory = pick(m, ['mandatory', 'isMandatory']);
-  if (mandatory === '') mandatory = MANDATORY_CONSENT_CODES.includes(code);
-  return {
-    id: String(pick(m, ['customerConsentId', 'consentId', 'id']) || scopeId),
-    customerId: String(pick(m, ['customerId', 'partyId']) || ''),
-    code,
-    name: pick(m, ['consentName', 'scopeName', 'name', 'title']) || code,
-    status: String(pick(m, ['status', 'consentStatus', 'customerStatus'])).toUpperCase(),
-    mandatory: mandatory === true || mandatory === 1 ||
-               ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase())
-  };
-}
-
 // Reads the customer id from the login token (JWT payload). The token itself is verified by asking SLT.
 function customerFromToken(auth) {
   const t = (auth || '').replace(/^Bearer\s+/i, '');
@@ -84,20 +65,6 @@ function customerFromToken(auth) {
     for (const k of keys) if (p[k]) return { id: String(p[k]), claims: Object.keys(p) };
     return { id: null, claims: Object.keys(p) };
   } catch (_) { return { id: null, claims: [] }; }
-}
-
-// Customer key: prefer the id SLT puts on the customer's own records; fall back to the token claim.
-function customerKey(list, auth) {
-  for (const r of list || []) { const c = recordView(r).customerId; if (c) return c; }
-  return customerFromToken(auth).id;
-}
-
-function maskContact(v) {
-  if (!v) return null;
-  v = String(v).trim().slice(0, 150);
-  const at = v.indexOf('@');
-  if (at > 0) return v[0] + '***' + v.slice(at);
-  return v.length > 6 ? v.slice(0, 2) + '*'.repeat(v.length - 6) + v.slice(-4) : '****';
 }
 
 // GET on the SLT API with the customer's own token. Returns { status, headers, body }.
@@ -116,12 +83,45 @@ function upstreamGet(p, auth) {
   });
 }
 
-// Validates the token by calling SLT, and returns that customer's consent records.
+// Validates the token by calling SLT, and returns that customer's id.
+// We only trust SLT for "is this a real, logged-in customer, and who are
+// they" — the consent CONTENT itself now comes from CMS, not from here.
 async function authenticate(auth) {
   const up = await upstreamGet('/api/v1/customer/consents', auth);
   if (up.status !== 200) return { ok: false, status: up.status };
   let json; try { json = JSON.parse(up.body.toString('utf8')); } catch (_) { return { ok: false, status: 502 }; }
-  return { ok: true, list: findArray(json) || [], json };
+  const list = findArray(json) || [];
+  const fromRecord = list.map(r => pick(r, ['customerId', 'partyId'])).find(Boolean);
+  const id = fromRecord || customerFromToken(auth).id;
+  if (!id) return { ok: false, status: 400 };
+  return { ok: true, customerId: String(id) };
+}
+
+// ---------------------------------------------------------------- CMS integration
+function cmsRequest(method, urlPath, body) {
+  return new Promise((resolve, reject) => {
+    const base = new URL(CMS_API_BASE);
+    const isHttps = base.protocol === 'https:';
+    const lib = isHttps ? https : http;
+    const payload = body ? JSON.stringify(body) : null;
+    const headers = { Accept: 'application/json', 'x-api-key': CMS_API_KEY };
+    if (payload) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(payload); }
+
+    const r = lib.request({
+      host: base.hostname, port: base.port || (isHttps ? 443 : 80), path: urlPath, method, headers
+    }, resp => {
+      const chunks = [];
+      resp.on('data', c => chunks.push(c));
+      resp.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (_) { /* leave null */ }
+        resolve({ status: resp.statusCode, json });
+      });
+    });
+    r.on('error', reject);
+    if (payload) r.write(payload);
+    r.end();
+  });
 }
 
 // ---------------------------------------------------------------- local consent API
@@ -132,19 +132,44 @@ async function handleConsentApi(req, res) {
   const url = req.url;
   const mOne = RE_ONE.exec(url);
 
-  // PUT /api/v1/customer/consents/:id   -> save Accept / Decline
+  // PUT /api/v1/customer/consents/:consentCode -> save Accept / Decline
   if (mOne && !mOne[2] && req.method === 'PUT') { await handleSave(req, res, decodeURIComponent(mOne[1])); return true; }
-  // GET /api/v1/customer/consents/:id/history -> timeline
-  if (mOne && mOne[2] && req.method === 'GET') { await handleHistory(req, res, decodeURIComponent(mOne[1])); return true; }
-  // GET /api/v1/customer/consents -> SLT list with our saved choices laid over it
+  // GET /api/v1/customer/consents -> catalog + this customer's status, from CMS
   if (RE_LIST.test(url) && req.method === 'GET') { await handleList(req, res); return true; }
-  return false; // everything else is forwarded to SLT
+  return false; // everything else is forwarded to SLT (login, etc.)
 }
 
-async function handleSave(req, res, consentId) {
+async function handleList(req, res) {
   const auth = req.headers.authorization;
   if (!auth) return sendJson(res, 401, { message: 'Missing token.' });
-  if (!col) return sendJson(res, 503, { message: 'MongoDB is not connected.' });
+
+  let a;
+  try { a = await authenticate(auth); } catch (e) { return sendJson(res, 502, { message: 'Could not reach SLT API: ' + e.message }); }
+  if (!a.ok) return sendJson(res, a.status === 401 ? 401 : 502, { message: 'Token check failed (' + a.status + ').' });
+
+  let cms;
+  try { cms = await cmsRequest('GET', `/api/v2/integration/consents/customer/${encodeURIComponent(a.customerId)}`); }
+  catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
+  if (cms.status !== 200 || !cms.json?.success) return sendJson(res, 502, { message: 'ConsentHub returned an error.' });
+
+  // Shape each record so my-consent.html's own field-picking (code/id/status/mandatory) just works.
+  const data = cms.json.data.map(c => ({
+    id: c.consentCode,
+    consentCode: c.consentCode,
+    consentName: c.consentName,
+    status: c.consentStatus,
+    isMandatory: c.isMandatory,
+    description: c.statement,
+    version: c.consentVersion,
+    effectiveFrom: c.effectiveFrom,
+    effectiveTo: c.effectiveTo,
+  }));
+  return sendJson(res, 200, { success: true, data });
+}
+
+async function handleSave(req, res, consentCode) {
+  const auth = req.headers.authorization;
+  if (!auth) return sendJson(res, 401, { message: 'Missing token.' });
 
   let body;
   try { body = JSON.parse((await readBody(req)).toString('utf8') || '{}'); }
@@ -153,122 +178,17 @@ async function handleSave(req, res, consentId) {
   const action = body.action;
   if (action !== 'accept' && action !== 'decline') return sendJson(res, 400, { message: "action must be 'accept' or 'decline'." });
   const channel = String(body.channel || 'web').slice(0, 30);
-  const source = String(body.source || 'UNKNOWN').slice(0, 60);
-  const verificationMethod = ['phone', 'email'].includes(body.verificationMethod) ? body.verificationMethod : null;
 
   let a;
   try { a = await authenticate(auth); } catch (e) { return sendJson(res, 502, { message: 'Could not reach SLT API: ' + e.message }); }
   if (!a.ok) return sendJson(res, a.status === 401 ? 401 : 502, { message: 'Token check failed (' + a.status + ').' });
 
-  const cust = { id: customerKey(a.list, auth) };
-  if (!cust.id) {
-    console.error('No customer id on SLT records or in token. Token claims:', customerFromToken(auth).claims);
-    return sendJson(res, 400, { message: 'Customer id not found.' });
-  }
+  let cms;
+  try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', { customerId: a.customerId, consentCode, action, channel }); }
+  catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
 
-  const views = a.list.map(recordView);
-  const rec = views.find(v => v.id === String(consentId));
-  if (!rec) {
-    console.error('Consent', consentId, 'not found. Ids from SLT:', views.map(v => v.id));
-    return sendJson(res, 404, { message: 'Consent not found.' });
-  }
-
-  if (action === 'decline' && rec.mandatory) return sendJson(res, 400, { message: 'This consent is mandatory and cannot be declined.' });
-
-  const newStatus = action === 'accept' ? 'GRANTED' : 'REVOKED';
-  const existing = await col.findOne({ customerId: cust.id, consentId: String(consentId) });
-  const previousStatus = (existing && existing.status) || rec.status || 'PENDING';
-
-  if (existing && existing.status === newStatus) {
-    return sendJson(res, 200, { customerConsentId: consentId, status: newStatus, changed: false });
-  }
-
-  const now = new Date();
-  const entry = {
-    id: new ObjectId().toString(),
-    action, previousStatus, newStatus, channel, source, verificationMethod,
-    verifiedContactMasked: maskContact(body.verifiedContact),
-    ipAddress: req.socket.remoteAddress || null,
-    userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
-    createdAt: now
-  };
-
-  const set = { status: newStatus, updatedAt: now, scopeCode: rec.code, consentName: rec.name };
-  if (action === 'accept') { set.effectiveFrom = now; set.effectiveTo = null; }
-  else { set.effectiveTo = now; }
-
-  try {
-    // Filter includes the old status, so two quick clicks cannot both win.
-    const filter = existing
-      ? { customerId: cust.id, consentId: String(consentId), status: existing.status }
-      : { customerId: cust.id, consentId: String(consentId), status: { $exists: false } };
-    const r = await col.updateOne(filter, { $set: set, $push: { history: entry } }, { upsert: !existing });
-    if (!existing && r.upsertedCount === 0 && r.modifiedCount === 0) throw Object.assign(new Error('conflict'), { code: 11000 });
-    if (existing && r.modifiedCount === 0) throw Object.assign(new Error('conflict'), { code: 11000 });
-  } catch (e) {
-    if (e.code === 11000) return sendJson(res, 409, { message: 'Consent was changed by another request. Refresh and try again.' });
-    console.error('Mongo save failed:', e);
-    return sendJson(res, 500, { message: 'Could not save.' });
-  }
-
-  return sendJson(res, 200, { customerConsentId: consentId, status: newStatus, changed: true, historyId: entry.id });
-}
-
-async function handleHistory(req, res, consentId) {
-  const auth = req.headers.authorization;
-  if (!auth) return sendJson(res, 401, { message: 'Missing token.' });
-  if (!col) return sendJson(res, 503, { message: 'MongoDB is not connected.' });
-
-  let a;
-  try { a = await authenticate(auth); } catch (e) { return sendJson(res, 502, { message: 'Could not reach SLT API.' }); }
-  if (!a.ok) return sendJson(res, a.status === 401 ? 401 : 502, { message: 'Token check failed.' });
-
-  const cust = { id: customerKey(a.list, auth) };
-  if (!cust.id) return sendJson(res, 400, { message: 'Customer id not found.' });
-
-  const doc = await col.findOne({ customerId: cust.id, consentId: String(consentId) });
-  const items = ((doc && doc.history) || [])
-    .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))
-    .map(h => ({
-      id: h.id, action: h.action, previousStatus: h.previousStatus, newStatus: h.newStatus,
-      channel: h.channel, source: h.source, verificationMethod: h.verificationMethod,
-      verifiedContact: h.verifiedContactMasked, createdAt: new Date(h.createdAt).toISOString()
-    }));
-  return sendJson(res, 200, { data: items });
-}
-
-async function handleList(req, res) {
-  const auth = req.headers.authorization;
-  let up;
-  try { up = await upstreamGet(req.url, auth || ''); }
-  catch (e) { return sendJson(res, 502, { message: 'Proxy error: ' + e.message }); }
-
-  // Not OK, or Mongo/token unavailable -> return SLT's answer untouched.
-  const passthrough = () => {
-    const h = { ...up.headers }; delete h['transfer-encoding'];
-    h['content-length'] = up.body.length;
-    res.writeHead(up.status, h); res.end(up.body);
-  };
-  if (up.status !== 200 || !col) return passthrough();
-
-  let json; try { json = JSON.parse(up.body.toString('utf8')); } catch (_) { return passthrough(); }
-  const list = findArray(json);
-  const cust = { id: list ? customerKey(list, auth) : null };
-  if (!list || !cust.id) return passthrough();
-
-  try {
-    const docs = await col.find({ customerId: cust.id }).toArray();
-    const byId = new Map(docs.map(d => [d.consentId, d]));
-    for (const r of list) {
-      const d = byId.get(recordView(r).id);
-      if (!d) continue;
-      r.status = d.status;                                   // top-level fields win over nested "scope"
-      r.effectiveFrom = d.effectiveFrom ? d.effectiveFrom.toISOString() : null;
-      r.effectiveTo = d.effectiveTo ? d.effectiveTo.toISOString() : null;
-    }
-  } catch (e) { console.error('Overlay failed:', e.message); return passthrough(); }
-
-  return sendJson(res, 200, json);
+  if (cms.status !== 200) return sendJson(res, cms.status, { message: cms.json?.message || 'ConsentHub rejected the request.' });
+  return sendJson(res, 200, { customerConsentId: cms.json.customerConsentId, status: cms.json.consentStatus, changed: true });
 }
 
 // ---------------------------------------------------------------- forward everything else to SLT
@@ -305,16 +225,4 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-async function start() {
-  try {
-    const client = new MongoClient(MONGO_URI, { serverSelectionTimeoutMS: 3000 });
-    await client.connect();
-    col = client.db(DB_NAME).collection('consentChoices');
-    await col.createIndex({ customerId: 1, consentId: 1 }, { unique: true, name: 'ux_customer_consent' });
-    console.log('MongoDB connected:', DB_NAME);
-  } catch (e) {
-    console.error('MongoDB NOT connected (' + e.message + '). Pages and SLT proxy still work; saving will not.');
-  }
-  server.listen(PORT, () => console.log('Open http://localhost:' + PORT));
-}
-start();
+server.listen(PORT, () => console.log('Open http://localhost:' + PORT + ' — consents backed by ConsentHub at ' + CMS_API_BASE));
