@@ -1,18 +1,31 @@
 // server.js — serves your pages, verifies the customer's SLT login, and
-// sources the consent list + Accept/Decline from ConsentHub (CMS) instead
-// of a local database. CMS is now the single source of truth for what
-// consents exist and what the customer has decided.
+// sources the consent list + Accept/Decline from ConsentHub (CMS).
+// Run this and open http://localhost:5500 — the page MUST be loaded from here,
+// otherwise /api/v1/customer/consents/:id (PUT) goes to SLT and returns 404.
 const http = require('http'), https = require('https'), fs = require('fs'), path = require('path');
 
-// ---------------------------------------------------------------- config
-const TARGET = 'dpdlab1.slt.lk', TARGET_PORT = 9000, PORT = 5500;
+// ---------------------------------------------------------------- .env loader (no dependency)
+(function loadEnv() {
+  try {
+    const txt = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    for (const line of txt.split(/\r?\n/)) {
+      const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+      if (!m || line.trim().startsWith('#')) continue;
+      const val = m[2].replace(/^["']|["']$/g, '');
+      if (process.env[m[1]] === undefined) process.env[m[1]] = val;
+    }
+  } catch (_) { /* no .env file — rely on real environment variables */ }
+})();
 
-// ConsentHub (CMS) — the shared consent API at /api/v2/integration/consents.
-// CMS_API_KEY is MySLT's own key, issued in CMS under Recipients (MySLT) ->
-// "Issue API key". Each organisation that integrates gets its own key from
-// that same screen; this app only ever uses its one.
+// ---------------------------------------------------------------- config
+const TARGET = 'dpdlab1.slt.lk', TARGET_PORT = 9000, PORT = process.env.PORT || 5500;
 const CMS_API_BASE = process.env.CMS_API_BASE || 'https://dpdlab1.slt.lk:9000';
-const CMS_API_KEY = process.env.CMS_API_KEY || 'e6b5fbaafbe2e0bdebae867e37e86c033928f38dca949fa8';
+const CMS_API_KEY = process.env.CMS_API_KEY;   // NEVER hardcode this. Put it in .env
+
+if (!CMS_API_KEY) {
+  console.error('Missing CMS_API_KEY. Create a .env file next to server.js containing:\nCMS_API_KEY=your-new-key');
+  process.exit(1);
+}
 
 const types = {
   '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
@@ -41,7 +54,6 @@ function readBody(req, limit = 20000) {
   });
 }
 
-// Same shapes the page understands.
 function findArray(json) {
   if (Array.isArray(json)) return json;
   const d = json && (json.data ?? json);
@@ -52,7 +64,6 @@ function findArray(json) {
   return null;
 }
 
-// Reads the customer id from the login token (JWT payload). The token itself is verified by asking SLT.
 function customerFromToken(auth) {
   const t = (auth || '').replace(/^Bearer\s+/i, '');
   const parts = t.split('.');
@@ -67,7 +78,6 @@ function customerFromToken(auth) {
   } catch (_) { return { id: null, claims: [] }; }
 }
 
-// GET on the SLT API with the customer's own token. Returns { status, headers, body }.
 function upstreamGet(p, auth) {
   return new Promise((resolve, reject) => {
     const r = https.request({
@@ -83,9 +93,6 @@ function upstreamGet(p, auth) {
   });
 }
 
-// Validates the token by calling SLT, and returns that customer's id.
-// We only trust SLT for "is this a real, logged-in customer, and who are
-// they" — the consent CONTENT itself now comes from CMS, not from here.
 async function authenticate(auth) {
   const up = await upstreamGet('/api/v1/customer/consents', auth);
   if (up.status !== 200) return { ok: false, status: up.status };
@@ -132,9 +139,7 @@ async function handleConsentApi(req, res) {
   const url = req.url;
   const mOne = RE_ONE.exec(url);
 
-  // PUT /api/v1/customer/consents/:consentCode -> save Accept / Decline
   if (mOne && !mOne[2] && req.method === 'PUT') { await handleSave(req, res, decodeURIComponent(mOne[1])); return true; }
-  // GET /api/v1/customer/consents -> catalog + this customer's status, from CMS
   if (RE_LIST.test(url) && req.method === 'GET') { await handleList(req, res); return true; }
   return false; // everything else is forwarded to SLT (login, etc.)
 }
@@ -150,9 +155,12 @@ async function handleList(req, res) {
   let cms;
   try { cms = await cmsRequest('GET', `/api/v2/integration/consents/customer/${encodeURIComponent(a.customerId)}`); }
   catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
-  if (cms.status !== 200 || !cms.json?.success) return sendJson(res, 502, { message: 'ConsentHub returned an error.' });
 
-  // Shape each record so my-consent.html's own field-picking (code/id/status/mandatory) just works.
+  if (cms.status !== 200 || !cms.json?.success || !Array.isArray(cms.json.data)) {
+    console.error('ConsentHub list error:', cms.status, JSON.stringify(cms.json));
+    return sendJson(res, 502, { message: 'ConsentHub returned an error (' + cms.status + ').' });
+  }
+
   const data = cms.json.data.map(c => ({
     id: c.consentCode,
     consentCode: c.consentCode,
@@ -187,7 +195,10 @@ async function handleSave(req, res, consentCode) {
   try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', { customerId: a.customerId, consentCode, action, channel }); }
   catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
 
-  if (cms.status !== 200) return sendJson(res, cms.status, { message: cms.json?.message || 'ConsentHub rejected the request.' });
+  if (cms.status !== 200) {
+    console.error('ConsentHub save error:', cms.status, JSON.stringify(cms.json));
+    return sendJson(res, cms.status, { message: cms.json?.message || 'ConsentHub rejected the request.' });
+  }
   return sendJson(res, 200, { customerConsentId: cms.json.customerConsentId, status: cms.json.consentStatus, changed: true });
 }
 
@@ -217,7 +228,11 @@ const server = http.createServer(async (req, res) => {
 
   const rel = req.url === '/' ? 'login.html' : decodeURIComponent(req.url.split('?')[0]);
   const file = path.join(__dirname, rel);
-  if (!file.startsWith(__dirname)) { res.writeHead(403); return res.end(); }
+  // block path traversal and never serve secrets / source files
+  const base = path.basename(file).toLowerCase();
+  if (!file.startsWith(__dirname) || ['.env', 'server.js', 'proxy.js', 'package.json', 'package-lock.json', '.gitignore'].includes(base)) {
+    res.writeHead(403); return res.end();
+  }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
