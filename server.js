@@ -161,17 +161,28 @@ async function handleList(req, res) {
     return sendJson(res, 502, { message: 'ConsentHub returned an error (' + cms.status + ').' });
   }
 
-  const data = cms.json.data.map(c => ({
-    id: c.consentCode,
-    consentCode: c.consentCode,
-    consentName: c.consentName,
-    status: c.consentStatus,
-    isMandatory: c.isMandatory,
-    description: c.statement,
-    version: c.consentVersion,
-    effectiveFrom: c.effectiveFrom,
-    effectiveTo: c.effectiveTo,
-  }));
+  // CMS sends card text in EN/SI/TA under c.texts, plus Data/Action/Used By/Valid
+  // For instead of a version number. This page has no language switcher yet, so
+  // it shows English; texts/data/action/usedBy/validFor are passed through
+  // untouched for whenever that's added.
+  const data = cms.json.data.map(c => {
+    const en = c.texts?.EN || {};
+    return {
+      id: c.consentCode,
+      consentCode: c.consentCode,
+      consentName: en.title,
+      status: c.consentStatus,
+      isMandatory: c.isMandatory,
+      description: en.statement,
+      texts: c.texts,
+      data: c.data,
+      action: c.action,
+      usedBy: c.usedBy,
+      validFor: c.validFor,
+      effectiveFrom: c.effectiveFrom,
+      effectiveTo: c.effectiveTo,
+    };
+  });
   return sendJson(res, 200, { success: true, data });
 }
 

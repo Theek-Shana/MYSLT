@@ -208,6 +208,11 @@
   <button class="back-btn" onclick="window.location.href='homescreen.html'">← Back</button>
   <div class="brand">SLT<span>MOBITEL</span></div>
   <div class="spacer"></div>
+  <select id="langSelect" aria-label="Language" style="background:#0f1f3d;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;font-size:13px;margin-right:10px;">
+    <option value="EN">English</option>
+    <option value="SI">සිංහල</option>
+    <option value="TA">தமிழ்</option>
+  </select>
   <button class="back-btn" id="logoutBtn" style="display:none;">Logout</button>
 </div>
 
@@ -359,6 +364,14 @@
   }
   logoutBtn.addEventListener('click', goToLogin);
 
+  const langSelect = document.getElementById('langSelect');
+  langSelect.value = currentLang;
+  langSelect.addEventListener('change', () => {
+    currentLang = langSelect.value;
+    try { localStorage.setItem('myslt-lang', currentLang); } catch (_) { /* not persisted */ }
+    renderConsentList(lastLoadedList); // re-render from the cached list, no re-fetch needed
+  });
+
   // =========================================================
   // tabs
   // =========================================================
@@ -379,6 +392,11 @@
   // =========================================================
   // build cards from the API records
   // =========================================================
+  // Selected display language (EN/SI/TA). Persisted so it survives a reload.
+  let currentLang = (() => {
+    try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; }
+  })();
+
   function normalise(r) {
     const scope = (r.scope && typeof r.scope === 'object') ? r.scope
                 : (r.consentScope && typeof r.consentScope === 'object') ? r.consentScope
@@ -386,10 +404,15 @@
                 : {};
     const merged = { ...scope, ...r };
 
+    // CMS sends card text per language under r.texts = { EN: {title, statement}, SI: {...}, TA: {...} }.
+    // Use whichever language is selected, falling back to English, then to the
+    // older flat fields (consentName/description) for anything that doesn't send texts.
+    const textForLang = (r.texts && (r.texts[currentLang] || r.texts.EN)) || null;
+
     const scopeId = pick(merged, ['scopeId', 'scope_id', 'consentScopeId']);
     const code = pick(merged, ['scopeCode', 'code', 'consentCode']);
     const consentType = pick(merged, ['consentType', 'categoryName', 'category']);
-    const name = pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
+    const name = textForLang?.title || pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
     const status = String(pick(merged, ['status', 'consentStatus', 'customerStatus'])).toUpperCase();
     const active = pick(merged, ['active', 'isActive']);
     let mandatory = pick(merged, ['mandatory', 'isMandatory']);
@@ -401,10 +424,13 @@
       mandatory: mandatory === true || mandatory === 1 ||
                  ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
       description: (() => {
+        if (textForLang?.statement) return textForLang.statement;
         const fromApi = findDescription(r);
         const fb = DESCRIPTION_FALLBACK[code] || DESCRIPTION_FALLBACK[scopeId] || '';
         return fb.length > fromApi.length ? fb : fromApi;
       })(),
+      acceptLabel: textForLang?.grantButtonLabel || 'Accept',
+      declineLabel: textForLang?.revokeButtonLabel || 'Decline',
       version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
       effectiveFrom: pick(merged, ['effectiveFrom', 'validFrom', 'grantedAt', 'createdAt']),
       effectiveTo: pick(merged, ['effectiveTo', 'validTo', 'expiresAt'])
@@ -451,9 +477,9 @@
         ${detailRow('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—')}
       </div>
       <div class="choice-row">
-        <button class="choice-btn accept ${accepted ? 'selected' : ''}" data-choice="accept">✓ Accept</button>
+        <button class="choice-btn accept ${accepted ? 'selected' : ''}" data-choice="accept">✓ ${esc(c.acceptLabel)}</button>
         <button class="choice-btn decline ${declined ? 'selected' : ''}" data-choice="decline"
-          ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}>Decline</button>
+          ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}>${esc(c.declineLabel)}</button>
       </div>`;
     return item;
   }
@@ -461,6 +487,26 @@
   // =========================================================
   // load consents from the API
   // =========================================================
+  let lastLoadedList = []; // cached so switching language re-renders without a re-fetch
+
+  function renderConsentList(list) {
+    panelMandatory.innerHTML = '';
+    panelOther.innerHTML = '';
+    let mCount = 0, oCount = 0;
+
+    list.forEach(record => {
+      const card = buildConsentCard(record);
+      if (card.dataset.mandatory === '1') { panelMandatory.appendChild(card); mCount++; }
+      else { panelOther.appendChild(card); oCount++; }
+    });
+
+    const empty = '<p class="empty-msg">Nothing to show here.</p>';
+    if (!mCount) panelMandatory.innerHTML = empty;
+    if (!oCount) panelOther.innerHTML = empty;
+    document.getElementById('countMandatory').textContent = mCount;
+    document.getElementById('countOther').textContent = oCount;
+  }
+
   async function loadConsents() {
     const loadingMsg = document.getElementById('loadingMsg');
     const loadErrorMsg = document.getElementById('loadErrorMsg');
@@ -480,25 +526,8 @@
       if (!res.ok) throw new Error('Request failed with status ' + res.status);
 
       const json = await res.json();
-      // Debug: shows which fields the API really sends. Remove when done.
-      console.log('FIRST RECORD:', JSON.stringify(extractList(json)[0], null, 2));
-      const list = extractList(json);
-
-      panelMandatory.innerHTML = '';
-      panelOther.innerHTML = '';
-      let mCount = 0, oCount = 0;
-
-      list.forEach(record => {
-        const card = buildConsentCard(record);
-        if (card.dataset.mandatory === '1') { panelMandatory.appendChild(card); mCount++; }
-        else { panelOther.appendChild(card); oCount++; }
-      });
-
-      const empty = '<p class="empty-msg">Nothing to show here.</p>';
-      if (!mCount) panelMandatory.innerHTML = empty;
-      if (!oCount) panelOther.innerHTML = empty;
-      document.getElementById('countMandatory').textContent = mCount;
-      document.getElementById('countOther').textContent = oCount;
+      lastLoadedList = extractList(json);
+      renderConsentList(lastLoadedList);
 
       loadingMsg.style.display = 'none';
     } catch (err) {
