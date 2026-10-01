@@ -190,6 +190,7 @@
 
   .empty-msg{color:var(--text-faint); font-size:13px; padding:20px 4px;}
 
+
   @media (max-width:760px){
     .topbar{padding:12px 16px;}
     .hero{margin-top:30px; padding:0 18px;} .hero h1{font-size:28px;}
@@ -236,6 +237,7 @@
     <div id="loadErrorMsg" style="display:none;color:#ff8a8a;font-size:13px;padding:10px 2px;"></div>
     <div class="consent-panel active" id="panelMandatory"></div>
     <div class="consent-panel" id="panelOther"></div>
+
   </div>
 </div>
 
@@ -289,10 +291,10 @@
   // =========================================================
   // CONFIG — no secrets here. Edit only these values.
   // =========================================================
-  const CONSENTS_GET_URL = '/myslt/api/v1/customer/consents';
+  const CONSENTS_GET_URL = '/api/v1/customer/consents';
 
   // Endpoint that saves Accept/Decline ({id} = customerConsentId). Must be created on the ConsentHub API.
-  const CONSENT_SAVE_URL = '/myslt/api/v1/customer/consents/{id}';
+  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
 
   // Fallback only, used if the API has no "mandatory" field for a consent.
   const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
@@ -305,6 +307,20 @@
     'TNC_FAIR_USE': "I agree to comply with SLT's Fair Usage Policy applicable to my service plan.",
     'PRIV_DATA_RETENTION': "I understand SLT will retain my personal data for the duration required by law/regulation after service termination."
   };
+
+  // =========================================================
+  // STATE — must be declared before anything below uses it
+  // (declaring these further down caused a ReferenceError that
+  //  stopped the whole script, so nothing ever loaded)
+  // =========================================================
+  // Selected display language (EN/SI/TA). Persisted so it survives a reload.
+  let currentLang = (() => {
+    try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; }
+  })();
+
+  let lastLoadedList = [];   // cached so switching language re-renders without a re-fetch
+  let currentItem = null;
+  let currentConsentId = null;
 
   // =========================================================
   // helpers
@@ -392,11 +408,6 @@
   // =========================================================
   // build cards from the API records
   // =========================================================
-  // Selected display language (EN/SI/TA). Persisted so it survives a reload.
-  let currentLang = (() => {
-    try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; }
-  })();
-
   function normalise(r) {
     const scope = (r.scope && typeof r.scope === 'object') ? r.scope
                 : (r.consentScope && typeof r.consentScope === 'object') ? r.consentScope
@@ -410,8 +421,8 @@
     const textForLang = (r.texts && (r.texts[currentLang] || r.texts.EN)) || null;
 
     const scopeId = pick(merged, ['scopeId', 'scope_id', 'consentScopeId']);
-    const code = pick(merged, ['scopeCode', 'code', 'consentCode']);
-    const consentType = pick(merged, ['consentType', 'categoryName', 'category']);
+    const code = pick(merged, ['consentCode', 'scopeCode', 'code']);
+    const consentType = pick(merged, ['categoryName', 'consentType', 'category']);
     const name = textForLang?.title || pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
     const status = String(pick(merged, ['status', 'consentStatus', 'customerStatus'])).toUpperCase();
     const active = pick(merged, ['active', 'isActive']);
@@ -420,6 +431,10 @@
     return {
       id: pick(merged, ['customerConsentId', 'consentId', 'id']) || scopeId,
       scopeId, code, name, consentType, status,
+      purposeName: pick(merged, ['purposeName', 'purpose']),
+      channel: pick(merged, ['channelCode', 'channel', 'grantChannel']),
+      grantedOn: pick(merged, ['consentDateTime', 'grantedAt', 'grantedDate']),
+      withdrawnOn: pick(merged, ['withdrawalDateTime', 'withdrawnAt', 'revokedAt']),
       active: active === '' ? null : (active === true || active === 'true' || active === 'Active'),
       mandatory: mandatory === true || mandatory === 1 ||
                  ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
@@ -432,8 +447,8 @@
       acceptLabel: textForLang?.grantButtonLabel || 'Accept',
       declineLabel: textForLang?.revokeButtonLabel || 'Decline',
       version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
-      effectiveFrom: pick(merged, ['effectiveFrom', 'validFrom', 'grantedAt', 'createdAt']),
-      effectiveTo: pick(merged, ['effectiveTo', 'validTo', 'expiresAt'])
+      effectiveFrom: pick(merged, ['validFrom', 'effectiveFrom', 'consentDateTime', 'grantedAt', 'createdAt']),
+      effectiveTo: pick(merged, ['validTo', 'effectiveTo', 'expiresAt'])
     };
   }
 
@@ -471,10 +486,13 @@
       ${c.description ? `<p class="c-desc">${esc(c.description)}</p>` : ''}
       <div class="detail-grid">
         ${detailRow('Consent Type', c.consentType)}
-        ${detailRow('Scope Code', c.code)}
+        ${detailRow('Purpose', c.purposeName)}
         ${detailRow('Version', c.version)}
+        ${detailRow('Channel', c.channel)}
+        ${detailRow('Responded On', fmtDate(c.grantedOn))}
         ${detailRow('Effective From', fmtDate(c.effectiveFrom))}
         ${detailRow('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—')}
+        ${detailRow('Withdrawn On', fmtDate(c.withdrawnOn))}
       </div>
       <div class="choice-row">
         <button class="choice-btn accept ${accepted ? 'selected' : ''}" data-choice="accept">✓ ${esc(c.acceptLabel)}</button>
@@ -487,8 +505,6 @@
   // =========================================================
   // load consents from the API
   // =========================================================
-  let lastLoadedList = []; // cached so switching language re-renders without a re-fetch
-
   function renderConsentList(list) {
     panelMandatory.innerHTML = '';
     panelOther.innerHTML = '';
@@ -541,9 +557,6 @@
   // =========================================================
   // Accept / Decline
   // =========================================================
-  let currentItem = null;
-  let currentConsentId = null;
-
   async function saveChoice(consentId, choice) {
     const res = await fetch(CONSENT_SAVE_URL.replace('{id}', encodeURIComponent(consentId)), {
       method: 'PUT',
