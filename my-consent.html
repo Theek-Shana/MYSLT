@@ -285,14 +285,14 @@
   // =========================================================
   // CONFIG — no secrets here. Edit only these values.
   // =========================================================
-  const CONSENTS_GET_URL = '/api/v1/customer/consents';
+  const CONSENTS_GET_URL = '/myslt/api/v1/customer/consents';
 
   // Email OTP endpoints (set these to your real ConsentHub API routes).
-  const OTP_SEND_URL   = '/api/v1/customer/otp/send';     // POST {channel:'EMAIL', email, consentId}
-  const OTP_VERIFY_URL = '/api/v1/customer/otp/verify';   // POST {channel:'EMAIL', email, otp, reference, consentId}
+  const OTP_SEND_URL   = '/myslt/api/v1/customer/otp/send';     // POST {channel:'EMAIL', email, consentId}
+  const OTP_VERIFY_URL = '/myslt/api/v1/customer/otp/verify';   // POST {channel:'EMAIL', email, otp, reference, consentId}
 
   // Endpoint that saves Accept/Decline ({id} = customerConsentId). Must be created on the ConsentHub API.
-  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
+  const CONSENT_SAVE_URL = '/myslt/api/v1/customer/consents/{id}';
 
   // Fallback only, used if the API has no "mandatory" field for a consent.
   const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
@@ -444,6 +444,10 @@
       })(),
       acceptLabel: textForLang?.grantButtonLabel || 'Accept',
       declineLabel: textForLang?.revokeButtonLabel || 'Decline',
+      data: [].concat(r.data || []).join(', '),
+      action: [].concat(r.action || []).join(', '),
+      usedBy: [].concat(r.usedBy || []).join(', '),
+      validFor: r.validFor || '',
       version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
       effectiveFrom: pick(merged, ['validFrom', 'effectiveFrom', 'consentDateTime', 'grantedAt', 'createdAt']),
       effectiveTo: pick(merged, ['validTo', 'effectiveTo', 'expiresAt'])
@@ -483,6 +487,10 @@
       </div>
       ${c.description ? `<p class="c-desc">${esc(c.description)}</p>` : ''}
       <div class="detail-grid">
+        ${detailRow('Data', c.data)}
+        ${detailRow('Action', c.action)}
+        ${detailRow('Used By', c.usedBy)}
+        ${detailRow('Valid For', c.validFor)}
         ${detailRow('Consent Type', c.consentType)}
         ${detailRow('Purpose', c.purposeName)}
         ${detailRow('Version', c.version)}

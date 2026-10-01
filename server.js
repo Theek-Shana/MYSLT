@@ -266,7 +266,7 @@ async function handleOtp(req, res, kind) {
     }
 
     for (const [ref, rec] of otpStore) if (rec.customerId === a.customerId && rec.consentCode === consentCode) otpStore.delete(ref);
-    otpStore.set(reference, { customerId: a.customerId, consentCode, email, salt, hash: hashOtp(otp, salt), expires: now + OTP_TTL_MS, attempts: 0 });
+    otpStore.set(reference, { customerId: a.customerId, consentCode, email, salt, hash: hashOtp(otp, salt), expires: now + OTP_TTL_MS, attempts: 0, sentAt: now });
     log.push(now); sendLog.set(key, log);
     await dbInsert({ reference, customerId: a.customerId, consentCode, email, channel: 'EMAIL', status: 'SENT',
       attempts: 0, requestedAt: new Date(now), expiresAt: new Date(now + OTP_TTL_MS), ...meta });
@@ -293,7 +293,7 @@ async function handleOtp(req, res, kind) {
   }
 
   otpStore.delete(reference);
-  verifiedStore.set(key, { exp: now + VERIFIED_TTL_MS, reference });
+  verifiedStore.set(key, { exp: now + VERIFIED_TTL_MS, reference, email: rec.email, sentAt: rec.sentAt, verifiedAt: now });
   await dbUpdate({ reference }, { $set: { status: 'VERIFIED', verifiedAt: new Date() }, $inc: { attempts: 1 } });
   return sendJson(res, 200, { success: true });
 }
@@ -331,10 +331,8 @@ async function handleList(req, res) {
     return sendJson(res, 502, { message: 'ConsentHub returned an error (' + cms.status + ').' });
   }
 
-  // CMS sends card text in EN/SI/TA under c.texts, plus Data/Action/Used By/Valid
-  // For instead of a version number. This page has no language switcher yet, so
-  // it shows English; texts/data/action/usedBy/validFor are passed through
-  // untouched for whenever that's added.
+  // CMS sends card text in EN/SI/TA under c.texts, plus Data/Action/Used By/Valid For.
+  // my-consent.html picks the language; the flat fields below are the English fallback.
   const data = cms.json.data.map(c => {
     const en = c.texts?.EN || {};
     return {
@@ -380,7 +378,11 @@ async function handleSave(req, res, consentCode) {
   }
 
   let cms;
-  try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', { customerId: a.customerId, consentCode, action, channel }); }
+  // On accept, tell CMS who confirmed and when (email + OTP sent/entered times — never the code) so it can keep the audit trail.
+  const proof = action === 'accept' ? verifiedStore.get(verifyKey) : null;
+  const event = { customerId: a.customerId, consentCode, action, channel, ipAddress: clientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 300) };
+  if (proof) event.verification = { method: 'EMAIL_OTP', email: proof.email, otpSentAt: new Date(proof.sentAt).toISOString(), otpVerifiedAt: new Date(proof.verifiedAt).toISOString() };
+  try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', event); }
   catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
 
   if (cms.status !== 200) {
@@ -408,6 +410,8 @@ function forwardToSlt(req, res) {
 
 // ---------------------------------------------------------------- web server
 const server = http.createServer(async (req, res) => {
+  // hosted under /myslt (https://dpdlab1.slt.lk:9000/myslt) — accept the prefix locally too
+  if (req.url.startsWith('/myslt/')) req.url = req.url.slice('/myslt'.length);
   if (req.url.startsWith('/api/')) {
     try {
       if (await handleConsentApi(req, res)) return;
