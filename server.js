@@ -1,8 +1,11 @@
 // server.js — serves your pages, verifies the customer's SLT login, and
 // sources the consent list + Accept/Decline from ConsentHub (CMS).
+// Also sends/verifies an email OTP before a consent can be ACCEPTED.
 // Run this and open http://localhost:5500 — the page MUST be loaded from here,
 // otherwise /api/v1/customer/consents/:id (PUT) goes to SLT and returns 404.
-const http = require('http'), https = require('https'), fs = require('fs'), path = require('path');
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+const http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 
 // ---------------------------------------------------------------- .env loader (no dependency)
 (function loadEnv() {
@@ -131,14 +134,181 @@ function cmsRequest(method, urlPath, body) {
   });
 }
 
+// ---------------------------------------------------------------- MongoDB: OTP request log
+// Every OTP request is saved for audit. The code itself (and its hash) is NEVER saved.
+// Env (.env): MONGODB_URI (required to log), MONGODB_DB (default consent_portal), MONGODB_OTP_COLLECTION (default otp_requests)
+// If MongoDB is missing/down the OTP flow still works; the problem is printed in this terminal.
+let mongoColl = null, mongoFailedAt = 0, mongoWarned = false;
+
+async function otpCollection() {
+  if (mongoColl) return mongoColl;
+  if (!process.env.MONGODB_URI) {
+    if (!mongoWarned) { console.warn('MONGODB_URI not set: OTP requests will NOT be saved to the database.'); mongoWarned = true; }
+    return null;
+  }
+  if (Date.now() - mongoFailedAt < 30000) return null;   // don't retry on every request while it is down
+  try {
+    const { MongoClient } = require('mongodb');
+    const client = new MongoClient(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    const coll = client.db(process.env.MONGODB_DB || 'consent_portal')
+      .collection(process.env.MONGODB_OTP_COLLECTION || 'otp_requests');
+    await coll.createIndex({ reference: 1 }, { unique: true });
+    await coll.createIndex({ customerId: 1, consentCode: 1, requestedAt: -1 });
+    mongoColl = coll;
+    console.log('MongoDB connected: OTP requests are saved to ' + coll.dbName + '.' + coll.collectionName);
+    return coll;
+  } catch (e) {
+    mongoFailedAt = Date.now();
+    console.error('MongoDB error:', e.code === 'MODULE_NOT_FOUND' ? 'mongodb package missing (run: npm install mongodb)' : e.message);
+    return null;
+  }
+}
+
+async function dbInsert(doc) {
+  try { const c = await otpCollection(); if (c) await c.insertOne(doc); }
+  catch (e) { console.error('MongoDB insert failed:', e.message); }
+}
+async function dbUpdate(filter, update) {
+  try { const c = await otpCollection(); if (c) await c.updateOne(filter, update); }
+  catch (e) { console.error('MongoDB update failed:', e.message); }
+}
+const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim().slice(0, 64);
+
+// ---------------------------------------------------------------- email OTP
+// Codes are generated and checked ONLY here on the server; the code is never sent to the browser.
+// Env (.env):  EMAIL_USER + EMAIL_PASS (or SMTP_USER + SMTP_PASS); optional SMTP_HOST (default smtp.gmail.com), SMTP_PORT (587), SMTP_SECURE, SMTP_FROM
+//              OTP_DEV_LOG=true  -> prints the code in this terminal instead of emailing (testing only)
+const OTP_TTL_MS = 5 * 60 * 1000;          // a code is valid for 5 minutes
+const VERIFIED_TTL_MS = 10 * 60 * 1000;    // after verifying, the customer has 10 minutes to press Accept
+const RESEND_MS = 30 * 1000;               // minimum gap between codes
+const MAX_ATTEMPTS = 5;                    // wrong guesses allowed per code
+const MAX_SENDS_PER_HOUR = 5;              // codes per customer per consent per hour
+
+const otpStore = new Map();       // reference -> { customerId, consentCode, email, salt, hash, expires, attempts }
+const verifiedStore = new Map();  // "customerId|consentCode" -> { exp, reference }
+const sendLog = new Map();        // "customerId|consentCode" -> [timestamps]
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of otpStore) if (v.expires < now) otpStore.delete(k);
+  for (const [k, v] of verifiedStore) if (v.exp < now) verifiedStore.delete(k);
+  for (const [k, v] of sendLog) { const keep = v.filter(t => now - t < 3600000); keep.length ? sendLog.set(k, keep) : sendLog.delete(k); }
+}, 60 * 1000).unref();
+
+const hashOtp = (otp, salt) => crypto.createHash('sha256').update(salt + otp).digest('hex');
+
+async function sendOtpEmail(to, otp) {
+  // Accepts SMTP_USER/SMTP_PASS or EMAIL_USER/EMAIL_PASS. Host defaults to Gmail when only a user/pass is given.
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const host = process.env.SMTP_HOST || (user ? 'smtp.gmail.com' : '');
+
+  if (!host || !user || !pass) {
+    if (process.env.OTP_DEV_LOG === 'true') { console.log(`[DEV] OTP for ${to}: ${otp}`); return; }
+    const e = new Error('Email credentials not set'); e.userMessage = 'The email service is not configured on the server.'; throw e;
+  }
+  let nodemailer;
+  try { nodemailer = require('nodemailer'); }
+  catch (_) { const e = new Error('nodemailer not installed (run: npm install nodemailer)'); e.userMessage = 'The email service is not set up on the server.'; throw e; }
+
+  const transport = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass: pass.replace(/\s+/g, '') }   // Gmail app passwords are shown with spaces; they must be removed
+  });
+  await transport.sendMail({
+    from: process.env.SMTP_FROM || user,
+    to,
+    subject: 'Your SLT Mobitel verification code',
+    text: `Your verification code is ${otp}.\n\nIt expires in 5 minutes. If you did not request this, you can ignore this email.`
+  });
+}
+
+async function handleOtp(req, res, kind) {
+  const auth = req.headers.authorization;
+  if (!auth) return sendJson(res, 401, { message: 'Missing token.' });
+
+  let body;
+  try { body = JSON.parse((await readBody(req)).toString('utf8') || '{}'); }
+  catch (_) { return sendJson(res, 400, { message: 'Invalid JSON.' }); }
+
+  let a;
+  try { a = await authenticate(auth); } catch (e) { return sendJson(res, 502, { message: 'Could not reach SLT API: ' + e.message }); }
+  if (!a.ok) return sendJson(res, a.status === 401 ? 401 : 502, { message: 'Token check failed (' + a.status + ').' });
+
+  const consentCode = String(body.consentId || '').slice(0, 100);
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!consentCode) return sendJson(res, 400, { message: 'consentId is required.' });
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) return sendJson(res, 400, { message: 'Enter a valid email address.' });
+
+  const key = a.customerId + '|' + consentCode;
+  const now = Date.now();
+
+  // ---------- send ----------
+  if (kind === 'send') {
+    const log = (sendLog.get(key) || []).filter(t => now - t < 3600000);
+    if (log.length && now - log[log.length - 1] < RESEND_MS) return sendJson(res, 429, { message: 'Please wait a few seconds before requesting another code.' });
+    if (log.length >= MAX_SENDS_PER_HOUR) return sendJson(res, 429, { message: 'Too many codes requested. Please try again later.' });
+
+    const otp = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    const salt = crypto.randomBytes(8).toString('hex');
+    const reference = crypto.randomBytes(12).toString('hex');
+
+    const meta = { ip: clientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 200) };
+    try { await sendOtpEmail(email, otp); }
+    catch (e) {
+      console.error('OTP email error:', e.message);
+      await dbInsert({ reference, customerId: a.customerId, consentCode, email, channel: 'EMAIL', status: 'FAILED',
+        failureReason: String(e.message).slice(0, 200), attempts: 0, requestedAt: new Date(now), ...meta });
+      return sendJson(res, 503, { message: e.userMessage || 'Could not send the email. Please try again.' });
+    }
+
+    for (const [ref, rec] of otpStore) if (rec.customerId === a.customerId && rec.consentCode === consentCode) otpStore.delete(ref);
+    otpStore.set(reference, { customerId: a.customerId, consentCode, email, salt, hash: hashOtp(otp, salt), expires: now + OTP_TTL_MS, attempts: 0 });
+    log.push(now); sendLog.set(key, log);
+    await dbInsert({ reference, customerId: a.customerId, consentCode, email, channel: 'EMAIL', status: 'SENT',
+      attempts: 0, requestedAt: new Date(now), expiresAt: new Date(now + OTP_TTL_MS), ...meta });
+    return sendJson(res, 200, { success: true, reference, expiresInSeconds: OTP_TTL_MS / 1000 });
+  }
+
+  // ---------- verify ----------
+  const reference = String(body.reference || '');
+  const otp = String(body.otp || '').replace(/\D/g, '');
+  const rec = otpStore.get(reference);
+  if (!rec || rec.customerId !== a.customerId || rec.consentCode !== consentCode || rec.email !== email) {
+    return sendJson(res, 400, { message: 'Invalid or expired code. Please request a new one.' });
+  }
+  if (now > rec.expires) { otpStore.delete(reference); await dbUpdate({ reference }, { $set: { status: 'EXPIRED' } }); return sendJson(res, 400, { message: 'This code has expired. Please request a new one.' }); }
+  if (otp.length !== 6) return sendJson(res, 400, { message: 'Enter the full 6-digit code.' });
+
+  rec.attempts++;
+  if (rec.attempts > MAX_ATTEMPTS) { otpStore.delete(reference); await dbUpdate({ reference }, { $set: { status: 'LOCKED', lockedAt: new Date() } }); return sendJson(res, 429, { message: 'Too many wrong attempts. Please request a new code.' }); }
+
+  const given = Buffer.from(hashOtp(otp, rec.salt)), real = Buffer.from(rec.hash);
+  if (given.length !== real.length || !crypto.timingSafeEqual(given, real)) {
+    await dbUpdate({ reference }, { $inc: { attempts: 1 }, $set: { lastAttemptAt: new Date() } });
+    return sendJson(res, 400, { message: 'Incorrect code. ' + (MAX_ATTEMPTS - rec.attempts) + ' attempt(s) left.' });
+  }
+
+  otpStore.delete(reference);
+  verifiedStore.set(key, { exp: now + VERIFIED_TTL_MS, reference });
+  await dbUpdate({ reference }, { $set: { status: 'VERIFIED', verifiedAt: new Date() }, $inc: { attempts: 1 } });
+  return sendJson(res, 200, { success: true });
+}
+
 // ---------------------------------------------------------------- local consent API
 const RE_LIST = /^\/api\/v1\/customer\/consents(\?.*)?$/;
 const RE_ONE = /^\/api\/v1\/customer\/consents\/([^/?]+)(\/history)?(\?.*)?$/;
+const RE_OTP = /^\/api\/v1\/customer\/otp\/(send|verify)(\?.*)?$/;
 
 async function handleConsentApi(req, res) {
   const url = req.url;
   const mOne = RE_ONE.exec(url);
+  const mOtp = RE_OTP.exec(url);
 
+  if (mOtp && req.method === 'POST') { await handleOtp(req, res, mOtp[1]); return true; }
   if (mOne && !mOne[2] && req.method === 'PUT') { await handleSave(req, res, decodeURIComponent(mOne[1])); return true; }
   if (RE_LIST.test(url) && req.method === 'GET') { await handleList(req, res); return true; }
   return false; // everything else is forwarded to SLT (login, etc.)
@@ -202,6 +372,13 @@ async function handleSave(req, res, consentCode) {
   try { a = await authenticate(auth); } catch (e) { return sendJson(res, 502, { message: 'Could not reach SLT API: ' + e.message }); }
   if (!a.ok) return sendJson(res, a.status === 401 ? 401 : 502, { message: 'Token check failed (' + a.status + ').' });
 
+  // Accepting requires a verified email OTP (enforced here, so it can't be skipped from the browser).
+  const verifyKey = a.customerId + '|' + consentCode;
+  if (action === 'accept') {
+    const v = verifiedStore.get(verifyKey);
+    if (!v || v.exp < Date.now()) return sendJson(res, 403, { message: 'Please verify your email with a one-time code before accepting.' });
+  }
+
   let cms;
   try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', { customerId: a.customerId, consentCode, action, channel }); }
   catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
@@ -209,6 +386,11 @@ async function handleSave(req, res, consentCode) {
   if (cms.status !== 200) {
     console.error('ConsentHub save error:', cms.status, JSON.stringify(cms.json));
     return sendJson(res, cms.status, { message: cms.json?.message || 'ConsentHub rejected the request.' });
+  }
+  if (action === 'accept') {                                  // one verification = one accept
+    const v = verifiedStore.get(verifyKey);
+    verifiedStore.delete(verifyKey);
+    if (v) await dbUpdate({ reference: v.reference }, { $set: { consentAcceptedAt: new Date(), consentAction: 'accept' } });
   }
   return sendJson(res, 200, { customerConsentId: cms.json.customerConsentId, status: cms.json.consentStatus, changed: true });
 }
@@ -251,4 +433,7 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => console.log('Open http://localhost:' + PORT + ' — consents backed by ConsentHub at ' + CMS_API_BASE));
+server.listen(PORT, () => {
+  console.log('Open http://localhost:' + PORT + ' — consents backed by ConsentHub at ' + CMS_API_BASE);
+  otpCollection();   // connect to MongoDB now so the status line prints at startup
+});
