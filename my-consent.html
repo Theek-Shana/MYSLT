@@ -179,6 +179,7 @@
   .primary-btn:hover{filter:brightness(1.08); transform:translateY(-1px);}
   .link-btn{background:none; border:none; color:#7db8ff; font-size:12px; cursor:pointer; display:block; margin:12px auto 0; font-family:inherit;}
   .link-btn:hover{text-decoration:underline;}
+  .link-btn:disabled{color:var(--text-faint); cursor:default; text-decoration:none;}
   .error-msg{color:#ff8a8a; font-size:12px; margin:0 0 10px; min-height:14px;}
 
   .success-box{display:none; text-align:center;}
@@ -219,7 +220,7 @@
 
 <div class="hero">
   <h1>My Consent</h1>
-  <p>Review each item and choose Accept or Decline. Accepting any item will prompt you to verify your contact details below.</p>
+  <p>Review each item and choose Accept or Decline. Accepting an item will ask you to verify your email with a one-time code.</p>
 </div>
 
 <div class="wrap" id="consentView" style="display:none;">
@@ -245,19 +246,11 @@
   <div class="verify-card">
     <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
     <div id="contactBox">
-      <h2>Verify Your Contact Details</h2>
-      <p class="sub" id="verifyForLabel">To confirm this consent, verify your registered contact details.</p>
-      <div class="method-toggle">
-        <button class="active" id="methodPhoneBtn">Mobile Number</button>
-        <button id="methodEmailBtn">Email</button>
-      </div>
-      <div class="field" id="phoneField">
-        <label for="phoneInput">Registered Mobile Number</label>
-        <input type="tel" id="phoneInput" placeholder="07XXXXXXXX">
-      </div>
-      <div class="field" id="emailField" style="display:none;">
-        <label for="emailInput">Registered Email Address</label>
-        <input type="email" id="emailInput" placeholder="you@example.com">
+      <h2>Verify Your Email</h2>
+      <p class="sub" id="verifyForLabel">To confirm this consent, verify your email address.</p>
+      <div class="field" id="emailField">
+        <label for="emailInput">Email Address</label>
+        <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
       </div>
       <div class="error-msg" id="contactError"></div>
       <button class="primary-btn" id="sendOtpBtn">Send OTP</button>
@@ -276,6 +269,7 @@
       <div class="error-msg" id="otpError"></div>
       <button class="primary-btn" id="confirmOtpBtn">Confirm</button>
       <button class="link-btn" id="resendBtn">Resend OTP</button>
+      <button class="link-btn" id="changeEmailBtn">Use a different email</button>
     </div>
 
     <div class="success-box" id="successBox">
@@ -292,6 +286,10 @@
   // CONFIG — no secrets here. Edit only these values.
   // =========================================================
   const CONSENTS_GET_URL = '/api/v1/customer/consents';
+
+  // Email OTP endpoints (set these to your real ConsentHub API routes).
+  const OTP_SEND_URL   = '/api/v1/customer/otp/send';     // POST {channel:'EMAIL', email, consentId}
+  const OTP_VERIFY_URL = '/api/v1/customer/otp/verify';   // POST {channel:'EMAIL', email, otp, reference, consentId}
 
   // Endpoint that saves Accept/Decline ({id} = customerConsentId). Must be created on the ConsentHub API.
   const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
@@ -571,27 +569,162 @@
   const contactBox = document.getElementById('contactBox');
   const otpSection = document.getElementById('otpSection');
   const successBox = document.getElementById('successBox');
+  const emailInput = document.getElementById('emailInput');
+  const sendOtpBtn = document.getElementById('sendOtpBtn');
+  const confirmOtpBtn = document.getElementById('confirmOtpBtn');
+  const resendBtn = document.getElementById('resendBtn');
+  const otpInputs = document.querySelectorAll('.otp-row input');
+
+  let contactValue = '';
+  let otpReference = '';
+  let resendTimer = null;
+
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify(body)
+    });
+    if (res.status === 401) { goToLogin(); throw new Error('Your session expired. Please log in again.'); }
+    let json = {};
+    try { json = await res.json(); } catch (_) { /* empty body */ }
+    if (!res.ok) throw new Error(json.message || json.error || ('Request failed (' + res.status + ')'));
+    return json;
+  }
 
   function resetVerifyPanel() {
+    clearInterval(resendTimer);
     contactBox.style.display = 'block';
     otpSection.classList.remove('open');
     successBox.classList.remove('open');
-    document.getElementById('phoneInput').value = '';
-    document.getElementById('emailInput').value = '';
-    document.querySelectorAll('.otp-row input').forEach(i => i.value = '');
+    emailInput.value = '';
+    otpInputs.forEach(i => i.value = '');
     document.getElementById('contactError').textContent = '';
     document.getElementById('otpError').textContent = '';
+    otpReference = '';
+    sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send OTP';
+    confirmOtpBtn.disabled = false; confirmOtpBtn.textContent = 'Confirm';
   }
 
+  // Accept clicked -> open the email verification popup for that consent
+  function openVerify(item) {
+    currentConsentId = item.dataset.consentId;
+    currentItem = item.dataset.consentName;
+    resetVerifyPanel();
+    verifyForLabel.textContent = 'To accept "' + currentItem + '", we will email a one-time code to confirm it is you.';
+    verifyPanel.classList.add('open');
+    emailInput.focus();
+  }
+
+  function startResendCooldown(seconds = 30) {
+    clearInterval(resendTimer);
+    let left = seconds;
+    resendBtn.disabled = true;
+    const tick = () => {
+      if (left <= 0) { clearInterval(resendTimer); resendBtn.disabled = false; resendBtn.textContent = 'Resend OTP'; return; }
+      resendBtn.textContent = 'Resend OTP in ' + left + 's';
+      left--;
+    };
+    tick();
+    resendTimer = setInterval(tick, 1000);
+  }
+
+  // Step 1: ask the server to email the OTP
+  async function requestOtp(isResend) {
+    const errorEl = document.getElementById(isResend ? 'otpError' : 'contactError');
+    errorEl.textContent = '';
+    const email = isResend ? contactValue : emailInput.value.trim();
+    if (!/^\S+@\S+\.\S+$/.test(email)) { errorEl.textContent = 'Enter a valid email address.'; return; }
+
+    sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Sending…';
+    try {
+      const json = await postJson(OTP_SEND_URL, { channel: 'EMAIL', email, consentId: currentConsentId });
+      const d = json.data || json;
+      otpReference = d.reference || d.otpId || d.requestId || '';
+      contactValue = email;
+      // confirmation message
+      document.getElementById('otpSentTo').textContent = "We've sent a 6-digit code to " + email + ". Enter it below to confirm.";
+      contactBox.style.display = 'none';
+      otpSection.classList.add('open');
+      otpInputs.forEach(i => i.value = '');
+      otpInputs[0].focus();
+      startResendCooldown();
+    } catch (err) {
+      errorEl.textContent = err.message;
+    } finally {
+      sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send OTP';
+    }
+  }
+
+  // Step 2: verify the OTP, then save the Accept
+  async function confirmOtp() {
+    const code = Array.from(otpInputs).map(i => i.value).join('');
+    const errorEl = document.getElementById('otpError');
+    if (code.length !== 6) { errorEl.textContent = 'Enter the full 6-digit code.'; return; }
+    errorEl.textContent = '';
+
+    confirmOtpBtn.disabled = true; confirmOtpBtn.textContent = 'Verifying…';
+    try {
+      await postJson(OTP_VERIFY_URL, {
+        channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId
+      });
+      await saveChoice(currentConsentId, 'accept');
+      clearInterval(resendTimer);
+      otpSection.classList.remove('open');
+      document.getElementById('successItemName').textContent = currentItem || '';
+      successBox.classList.add('open');
+    } catch (err) {
+      errorEl.textContent = err.message || 'Could not verify the code. Please try again.';
+    } finally {
+      confirmOtpBtn.disabled = false; confirmOtpBtn.textContent = 'Confirm';
+    }
+  }
+
+  sendOtpBtn.addEventListener('click', () => requestOtp(false));
+  emailInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') requestOtp(false); });
+  resendBtn.addEventListener('click', () => requestOtp(true));
+  confirmOtpBtn.addEventListener('click', confirmOtp);
+  document.getElementById('changeEmailBtn').addEventListener('click', () => {
+    clearInterval(resendTimer);
+    otpSection.classList.remove('open');
+    contactBox.style.display = 'block';
+    emailInput.focus();
+  });
+
+  otpInputs.forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^0-9]/g, '');
+      if (input.value && idx < otpInputs.length - 1) otpInputs[idx + 1].focus();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) otpInputs[idx - 1].focus();
+      if (e.key === 'Enter') confirmOtp();
+    });
+    input.addEventListener('paste', (e) => {
+      const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, otpInputs.length);
+      if (!digits) return;
+      e.preventDefault();
+      digits.split('').forEach((d, i) => { otpInputs[i].value = d; });
+      otpInputs[Math.min(digits.length, otpInputs.length - 1)].focus();
+    });
+  });
+
+  // Accept -> email OTP flow. Decline -> saved directly.
   document.querySelector('.content-col').addEventListener('click', async (e) => {
     const btn = e.target.closest('.choice-btn');
     if (!btn || btn.disabled) return;
-
     const item = btn.closest('.consent-item');
+
+    if (btn.dataset.choice === 'accept') {
+      if (item.classList.contains('s-on')) return;   // already accepted
+      openVerify(item);
+      return;
+    }
+
     const buttons = item.querySelectorAll('.choice-btn');
     buttons.forEach(b => b.disabled = true);
     try {
-      await saveChoice(item.dataset.consentId, btn.dataset.choice);
+      await saveChoice(item.dataset.consentId, 'decline');
       await loadConsents();
     } catch (err) {
       buttons.forEach(b => { b.disabled = item.dataset.mandatory === '1' && b.dataset.choice === 'decline'; });
@@ -601,73 +734,7 @@
     }
   });
 
-  const methodPhoneBtn = document.getElementById('methodPhoneBtn');
-  const methodEmailBtn = document.getElementById('methodEmailBtn');
-  const phoneField = document.getElementById('phoneField');
-  const emailField = document.getElementById('emailField');
-  let activeMethod = 'phone';
-
-  methodPhoneBtn.addEventListener('click', () => {
-    activeMethod = 'phone';
-    methodPhoneBtn.classList.add('active'); methodEmailBtn.classList.remove('active');
-    phoneField.style.display = 'block'; emailField.style.display = 'none';
-  });
-  methodEmailBtn.addEventListener('click', () => {
-    activeMethod = 'email';
-    methodEmailBtn.classList.add('active'); methodPhoneBtn.classList.remove('active');
-    emailField.style.display = 'block'; phoneField.style.display = 'none';
-  });
-
-  let contactValue = '';
-  document.getElementById('sendOtpBtn').addEventListener('click', () => {
-    const errorEl = document.getElementById('contactError');
-    errorEl.textContent = '';
-    if (activeMethod === 'phone') {
-      contactValue = document.getElementById('phoneInput').value.trim();
-      if (!/^0\d{9}$/.test(contactValue)) { errorEl.textContent = 'Enter a valid 10-digit mobile number (e.g. 0771234567).'; return; }
-    } else {
-      contactValue = document.getElementById('emailInput').value.trim();
-      if (!/^\S+@\S+\.\S+$/.test(contactValue)) { errorEl.textContent = 'Enter a valid email address.'; return; }
-    }
-    document.getElementById('otpSentTo').textContent = `We've sent a 6-digit code to ${contactValue}.`;
-    contactBox.style.display = 'none';
-    otpSection.classList.add('open');
-  });
-
-  const otpInputs = document.querySelectorAll('.otp-row input');
-  otpInputs.forEach((input, idx) => {
-    input.addEventListener('input', () => {
-      input.value = input.value.replace(/[^0-9]/g, '');
-      if (input.value && idx < otpInputs.length - 1) otpInputs[idx + 1].focus();
-    });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !input.value && idx > 0) otpInputs[idx - 1].focus();
-    });
-  });
-
-  document.getElementById('confirmOtpBtn').addEventListener('click', async () => {
-    const code = Array.from(otpInputs).map(i => i.value).join('');
-    const errorEl = document.getElementById('otpError');
-    if (code.length !== 6) { errorEl.textContent = 'Enter the full 6-digit code.'; return; }
-    errorEl.textContent = '';
-    try {
-      await saveChoice(currentConsentId, 'accept');
-    } catch (e) {
-      errorEl.textContent = 'Could not save your choice. Please try again.';
-      return;
-    }
-    otpSection.classList.remove('open');
-    document.getElementById('successItemName').textContent = currentItem || '';
-    successBox.classList.add('open');
-  });
-
-  document.getElementById('resendBtn').addEventListener('click', () => {
-    otpInputs.forEach(i => i.value = '');
-    otpInputs[0].focus();
-    alert('A new OTP has been sent (demo only).');
-  });
-
-  const closeModal = () => { verifyPanel.classList.remove('open'); loadConsents(); };
+  const closeModal = () => { clearInterval(resendTimer); verifyPanel.classList.remove('open'); loadConsents(); };
   document.getElementById('closeVerifyBtn').addEventListener('click', closeModal);
   document.getElementById('modalClose').addEventListener('click', closeModal);
   verifyPanel.addEventListener('click', (e) => { if (e.target === verifyPanel) closeModal(); });
