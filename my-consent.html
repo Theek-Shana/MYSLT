@@ -9,296 +9,167 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg-1:#060a17; --bg-2:#0c1430;
-    --glass:rgba(255,255,255,0.05); --glass-border:rgba(255,255,255,0.10);
-    --accent:#3ecf6e; --accent-2:#2f8fe0;
-    --text:#eef2ff; --text-dim:#9aabd3; --text-faint:#6a7ba6;
-    --danger:#ff6b6b; --warn:#ffd27a;
-    --radius:18px;
+    --bg:#f8fafc; --card:#fff; --border:#e2e8f0; --text:#0f172a; --dim:#475569; --faint:#64748b;
+    --link:#1e3a8a; --on:#16a34a; --off:#cbd5e1; --danger:#dc2626; --accent:#2f7fe0;
   }
   *{box-sizing:border-box;}
-  html{scroll-behavior:smooth;}
-  body{
-    margin:0; font-family:'Plus Jakarta Sans',Arial,sans-serif; color:var(--text); min-height:100vh;
-    background:
-      radial-gradient(900px 520px at 92% -10%, rgba(47,143,224,0.22), transparent 60%),
-      radial-gradient(700px 520px at -10% 8%, rgba(62,207,110,0.15), transparent 55%),
-      linear-gradient(180deg, var(--bg-1), var(--bg-2)) fixed;
-  }
+  body{margin:0; font-family:'Plus Jakarta Sans',Arial,sans-serif; color:var(--text); background:var(--bg); min-height:100vh;}
 
-  /* top bar */
-  .topbar{
-    display:flex; align-items:center; gap:16px; padding:14px 32px;
-    backdrop-filter:blur(14px); background:rgba(7,11,26,0.72);
-    border-bottom:1px solid var(--glass-border); position:sticky; top:0; z-index:20;
-  }
-  .back-btn{
-    background:var(--glass); border:1px solid var(--glass-border); color:var(--text);
-    padding:9px 16px; border-radius:11px; cursor:pointer; font:600 13px 'Plus Jakarta Sans',Arial,sans-serif; transition:.15s;
-  }
-  .back-btn:hover{background:rgba(255,255,255,0.12); transform:translateY(-1px);}
-  .brand{font-weight:800; font-size:19px; letter-spacing:.3px;}
-  .brand span{color:var(--accent);}
+  .topbar{display:flex; align-items:center; gap:12px; padding:12px 32px; background:#fff; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20;}
+  .top-btn{background:#fff; border:1px solid var(--border); color:var(--text); padding:8px 14px; border-radius:10px; cursor:pointer; font:600 13px inherit; font-family:inherit;}
+  .top-btn:hover{background:#f1f5f9;}
+  .brand{font-weight:800; font-size:18px;} .brand span{color:var(--on);}
   .spacer{flex:1;}
+  #langSelect{border:1px solid var(--border); border-radius:10px; padding:7px 10px; font:13px inherit; font-family:inherit; background:#fff; color:var(--text);}
 
-  /* hero */
-  .hero{max-width:1040px; margin:48px auto 0; padding:0 28px;}
-  .hero h1{
-    font-size:34px; font-weight:800; margin:0 0 10px; letter-spacing:-.4px;
-    background:linear-gradient(90deg,#fff,#a9c6ff); -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  .hero p{color:var(--text-dim); font-size:14.5px; max-width:620px; line-height:1.6; margin:0;}
+  .page{max-width:1040px; margin:24px auto 60px; padding:0 20px;}
+  .name-card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; font-size:24px; font-weight:800; margin-bottom:28px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
+  h1{font-size:22px; font-weight:800; margin:0 0 20px;}
+  h2{font-size:18px; font-weight:700; margin:0 0 4px;}
+  .section-note{color:var(--dim); font-size:15px; margin:0 0 14px;}
+  .section{margin-bottom:32px;}
 
-  .wrap{max-width:1040px; margin:34px auto 60px; padding:0 28px; display:flex; gap:28px; align-items:flex-start;}
+  .grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-top:14px;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 24px 14px; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(15,23,42,.05); animation:rise .35s ease both;}
+  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex:1;}
+  .card-top h3{margin:0 0 4px; font-size:19px; font-weight:700; line-height:1.25;}
+  .card-top .sub{color:var(--dim); font-size:15px;}
+  .card-foot{display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--border); margin-top:16px; padding-top:12px; min-height:44px;}
+  .stamp{color:var(--faint); font-size:14px;}
+  .view-btn{background:none; border:none; color:var(--link); font:600 15px inherit; font-family:inherit; cursor:pointer; padding:0; margin-left:auto;}
+  .view-btn:hover{text-decoration:underline;}
 
-  /* tabs */
-  .side-tabs{flex:0 0 240px; display:flex; flex-direction:column; gap:10px; position:sticky; top:90px;}
-  .tab-btn{
-    background:var(--glass); border:1px solid var(--glass-border); color:var(--text-dim);
-    text-align:left; padding:15px 16px; border-radius:15px; font:700 14px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer;
-    display:flex; align-items:center; gap:10px; transition:.18s;
-  }
-  .tab-btn .tag{font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; background:rgba(255,255,255,0.10); color:var(--text-dim);}
-  .tab-btn .count{
-    margin-left:auto; min-width:26px; text-align:center; font-size:12px; font-weight:800;
-    padding:3px 8px; border-radius:20px; background:rgba(255,255,255,0.10);
-  }
-  .tab-btn.active{
-    background:linear-gradient(90deg,#1e63c9,#2f8fe0); color:#fff; border-color:transparent;
-    box-shadow:0 12px 30px -10px rgba(33,150,243,0.6);
-  }
-  .tab-btn.active .tag,.tab-btn.active .count{background:rgba(255,255,255,0.25); color:#fff;}
-  .tab-btn:hover:not(.active){background:rgba(255,255,255,0.09); transform:translateX(2px);}
+  /* toggle switch */
+  .switch{flex:0 0 66px; width:66px; height:36px; border-radius:20px; border:none; background:var(--off); position:relative; cursor:pointer; transition:.2s; padding:0;}
+  .switch::after{content:''; position:absolute; top:4px; left:4px; width:28px; height:28px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s;}
+  .switch.on{background:var(--on);}
+  .switch.on::after{left:34px;}
+  .switch:disabled{cursor:not-allowed; opacity:.6;}
+  .switch:focus-visible{outline:3px solid rgba(47,127,224,.4);}
 
-  .content-col{flex:1; min-width:0;}
-  .consent-panel{display:none;}
-  .consent-panel.active{display:flex; flex-direction:column; gap:16px;}
+  .empty-msg{color:var(--faint); font-size:14px; padding:10px 2px;}
+  .error{color:var(--danger); font-size:13px; padding:8px 2px;}
 
-  /* consent card */
-  .consent-item{
-    position:relative; overflow:hidden;
-    background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025));
-    border:1px solid var(--glass-border); border-radius:var(--radius);
-    padding:22px 24px 22px 28px; backdrop-filter:blur(6px);
-    transition:.2s; animation:rise .4s ease both;
-  }
-  .consent-item::before{content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--text-faint);}
-  .consent-item.s-on::before{background:var(--accent);}
-  .consent-item.s-pending::before{background:var(--warn);}
-  .consent-item.s-off::before{background:var(--danger);}
-  .consent-item:hover{border-color:rgba(255,255,255,0.2); transform:translateY(-3px); box-shadow:0 18px 40px -22px rgba(0,0,0,0.7);}
-  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);}}
+  /* modals */
+  .modal{display:none; position:fixed; inset:0; z-index:50; padding:20px; background:rgba(15,23,42,.45); align-items:center; justify-content:center; overflow-y:auto;}
+  .modal.open{display:flex;}
+  .modal-card{position:relative; width:100%; max-width:460px; background:#fff; border-radius:20px; padding:30px; box-shadow:0 30px 70px -20px rgba(15,23,42,.4);}
+  .modal-close{position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:#fff; color:var(--dim); cursor:pointer;}
+  .modal-card h2{font-size:19px; margin:0 0 6px; padding-right:30px;}
+  .sub-p{color:var(--dim); font-size:14px; line-height:1.55; margin:0 0 18px;}
+  .field label{display:block; font-size:12px; color:var(--dim); margin-bottom:6px;}
+  .field input{width:100%; border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:14px; font-family:inherit; outline:none; margin-bottom:12px;}
+  .field input:focus,.otp-row input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(47,127,224,.18);}
+  .otp-section,.success-box{display:none;} .otp-section.open,.success-box.open{display:block;}
+  .success-box{text-align:center;}
+  .otp-row{display:flex; gap:8px; justify-content:center; margin-bottom:14px;}
+  .otp-row input{width:44px; height:52px; text-align:center; font-size:20px; font-weight:700; font-family:inherit; border:1px solid var(--border); border-radius:10px; outline:none;}
+  .primary-btn{width:100%; background:var(--link); color:#fff; border:none; border-radius:10px; padding:13px 0; font:700 14px inherit; font-family:inherit; cursor:pointer;}
+  .primary-btn:hover{filter:brightness(1.15);} .primary-btn:disabled{opacity:.6; cursor:default;}
+  .link-btn{background:none; border:none; color:var(--link); font-size:13px; cursor:pointer; display:block; margin:12px auto 0; font-family:inherit;}
+  .link-btn:disabled{color:var(--faint);}
+  .error-msg{color:var(--danger); font-size:12px; margin:0 0 10px; min-height:14px;}
+  .success-icon{width:60px; height:60px; border-radius:50%; background:#dcfce7; color:var(--on); font-size:28px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;}
+  .detail-list{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; margin-top:6px;}
+  .detail .dlabel{display:block; color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:2px;}
+  .detail .dval{font-weight:600; font-size:13px; overflow-wrap:anywhere;}
 
-  .card-head{display:flex; align-items:center; gap:14px; margin-bottom:12px;}
-  .c-icon{
-    flex:0 0 44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center;
-    background:linear-gradient(135deg,rgba(47,143,224,0.25),rgba(62,207,110,0.2)); border:1px solid var(--glass-border);
-  }
-  .c-icon svg{width:22px; height:22px; stroke:#bfe3ff; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;}
-  .c-title{min-width:0;}
-  .c-title h3{margin:0 0 6px; font-size:17px; font-weight:700; line-height:1.25;}
-  .tags{display:flex; gap:6px; flex-wrap:wrap;}
-  .c-desc{margin:0 0 16px; font-size:13.5px; color:var(--text-dim); max-width:620px; line-height:1.6;}
-
-  .detail-grid{
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px 20px;
-    margin-bottom:18px; padding:14px 16px; border-radius:13px;
-    background:rgba(4,8,20,0.35); border:1px solid rgba(255,255,255,0.06);
-  }
-  .detail{display:flex; flex-direction:column; font-size:12px; min-width:0;}
-  .detail .dlabel{color:var(--text-faint); font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:3px;}
-  .detail .dval{color:var(--text); font-weight:700; overflow-wrap:anywhere;}
-
-  .lock-tag{font-size:10px; font-weight:700; color:var(--warn); background:rgba(255,210,122,0.14); padding:3px 10px; border-radius:20px;}
-  .status-tag{font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; background:rgba(255,255,255,0.10); color:#fff; text-transform:capitalize;}
-  .status-tag.on{background:rgba(62,207,110,0.18); color:var(--accent);}
-  .status-tag.pending{background:rgba(255,210,122,0.18); color:var(--warn);}
-
-  /* accept / decline */
-  .choice-row{display:flex; gap:10px;}
-  .choice-btn{
-    border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-dim);
-    padding:10px 26px; border-radius:11px; font:700 13px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer; transition:.15s;
-  }
-  .choice-btn:hover{background:rgba(255,255,255,0.12); color:#fff;}
-  .choice-btn.accept.selected{background:var(--accent); color:#04280f; border-color:var(--accent); box-shadow:0 8px 22px -8px rgba(62,207,110,0.65);}
-  .choice-btn.decline.selected{background:var(--danger); color:#3a0000; border-color:var(--danger); box-shadow:0 8px 22px -8px rgba(255,107,107,0.65);}
-  .choice-btn:disabled{opacity:.4; cursor:not-allowed;}
-
-  /* verify popup */
-  .verify-panel{
-    display:none; position:fixed; inset:0; z-index:50; padding:20px;
-    background:rgba(3,6,16,0.72); backdrop-filter:blur(7px);
-    align-items:center; justify-content:center; overflow-y:auto;
-  }
-  .verify-panel.open{display:flex;}
-  .verify-card{
-    position:relative; width:100%; max-width:460px;
-    background:linear-gradient(180deg,#131c3d,#0d1530); border:1px solid rgba(62,207,110,0.35);
-    border-radius:22px; padding:32px; box-shadow:0 40px 80px -20px rgba(0,0,0,0.7); animation:pop .25s ease both;
-  }
-  @keyframes pop{from{opacity:0; transform:scale(.96) translateY(8px);} to{opacity:1; transform:none;}}
-  .modal-close{
-    position:absolute; top:14px; right:14px; width:32px; height:32px; border-radius:50%;
-    border:1px solid var(--glass-border); background:var(--glass); color:var(--text-dim); cursor:pointer; font-size:14px;
-  }
-  .modal-close:hover{background:rgba(255,255,255,0.14); color:#fff;}
-  .verify-card h2{font-size:19px; margin:0 0 6px; font-weight:800;}
-  .verify-card p.sub{color:var(--text-dim); font-size:13px; line-height:1.5; margin:0 0 22px;}
-
-  .method-toggle{display:flex; gap:6px; margin-bottom:20px; padding:4px; border-radius:12px; background:rgba(255,255,255,0.05);}
-  .method-toggle button{
-    flex:1; padding:10px 0; border-radius:9px; border:none; background:transparent; color:var(--text-dim);
-    font:700 13px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer; transition:.15s;
-  }
-  .method-toggle button.active{background:linear-gradient(90deg,#1e63c9,#2f8fe0); color:#fff;}
-
-  .field{margin-bottom:16px;}
-  .field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px;}
-  .field input{
-    width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:11px;
-    padding:13px 14px; color:#fff; font-size:14px; outline:none; transition:.15s; font-family:inherit;
-  }
-  .field input:focus{border-color:var(--accent-2); background:rgba(255,255,255,0.08); box-shadow:0 0 0 3px rgba(47,143,224,0.2);}
-  .field input::placeholder{color:#5f739e;}
-
-  .otp-section{display:none;}
-  .otp-section.open{display:block;}
-  .otp-row{display:flex; gap:8px; justify-content:center; margin-bottom:16px;}
-  .otp-row input{
-    width:44px; height:52px; text-align:center; font-size:20px; font-weight:700; font-family:inherit;
-    background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:11px; color:#fff; outline:none;
-  }
-  .otp-row input:focus{border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(47,143,224,0.2);}
-
-  .primary-btn{
-    width:100%; background:linear-gradient(90deg,#2f7fe0,#3ecf6e); color:#04280f;
-    border:none; border-radius:11px; padding:13px 0; font:800 14px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer;
-    transition:.15s; letter-spacing:.2px;
-  }
-  .primary-btn:hover{filter:brightness(1.08); transform:translateY(-1px);}
-  .link-btn{background:none; border:none; color:#7db8ff; font-size:12px; cursor:pointer; display:block; margin:12px auto 0; font-family:inherit;}
-  .link-btn:hover{text-decoration:underline;}
-  .link-btn:disabled{color:var(--text-faint); cursor:default; text-decoration:none;}
-  .error-msg{color:#ff8a8a; font-size:12px; margin:0 0 10px; min-height:14px;}
-
-  .success-box{display:none; text-align:center;}
-  .success-box.open{display:block;}
-  .success-icon{
-    width:62px; height:62px; border-radius:50%; background:rgba(62,207,110,0.15); color:var(--accent);
-    font-size:30px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;
-  }
-
-  .empty-msg{color:var(--text-faint); font-size:13px; padding:20px 4px;}
-
-
-  @media (max-width:760px){
-    .topbar{padding:12px 16px;}
-    .hero{margin-top:30px; padding:0 18px;} .hero h1{font-size:28px;}
-    .wrap{flex-direction:column; padding:0 18px;}
-    .side-tabs{flex-direction:row; flex:none; position:static; width:100%;}
-    .tab-btn{flex:1; justify-content:center; padding:13px 10px;}
-    .tab-btn .tag{display:none;}
-    .consent-item{padding:18px 18px 18px 22px;}
-    .choice-btn{flex:1;}
+  @media (max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media (max-width:600px){
+    .topbar{padding:10px 14px;} .grid{grid-template-columns:1fr;} .name-card{font-size:20px;}
   }
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <button class="back-btn" onclick="window.location.href='homescreen.html'">← Back</button>
+  <button class="top-btn" onclick="window.location.href='homescreen.html'">← Back</button>
   <div class="brand">SLT<span>MOBITEL</span></div>
   <div class="spacer"></div>
-  <select id="langSelect" aria-label="Language" style="background:#0f1f3d;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;font-size:13px;margin-right:10px;">
+  <select id="langSelect" aria-label="Language">
     <option value="EN">English</option>
     <option value="SI">සිංහල</option>
     <option value="TA">தமிழ்</option>
   </select>
-  <button class="back-btn" id="logoutBtn" style="display:none;">Logout</button>
+  <button class="top-btn" id="logoutBtn" style="display:none;">Logout</button>
 </div>
 
-<div class="hero">
-  <h1>My Consent</h1>
-  <p>Review each item and choose Accept or Decline. Accepting an item will ask you to verify your email with a one-time code.</p>
-</div>
+<div class="page" id="consentView" style="display:none;">
+  <div class="name-card" id="customerName">&nbsp;</div>
+  <h1>My Consents</h1>
 
-<div class="wrap" id="consentView" style="display:none;">
-  <div class="side-tabs">
-    <button class="tab-btn active" id="tabMandatoryBtn">
-      Mandatory <span class="tag">Required</span><span class="count" id="countMandatory"></span>
-    </button>
-    <button class="tab-btn" id="tabOtherBtn">
-      Other Consents <span class="tag">Optional</span><span class="count" id="countOther"></span>
-    </button>
+  <div id="loadingMsg" class="empty-msg">Loading your consents…</div>
+  <div id="loadErrorMsg" class="error" style="display:none;"></div>
+
+  <div class="section">
+    <h2>Mandatory consents</h2>
+    <p class="section-note">Needed to provide your service, so these cannot be switched off here.</p>
+    <div class="grid" id="panelMandatory"></div>
   </div>
 
-  <div class="content-col">
-    <div id="loadingMsg" class="empty-msg">Loading your consents…</div>
-    <div id="loadErrorMsg" style="display:none;color:#ff8a8a;font-size:13px;padding:10px 2px;"></div>
-    <div class="consent-panel active" id="panelMandatory"></div>
-    <div class="consent-panel" id="panelOther"></div>
-
+  <div class="section">
+    <h2>Optional consents</h2>
+    <div class="grid" id="panelOther"></div>
   </div>
 </div>
 
-<div class="verify-panel" id="verifyPanel">
-  <div class="verify-card">
+<!-- verify popup -->
+<div class="modal" id="verifyPanel">
+  <div class="modal-card">
     <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
     <div id="contactBox">
       <h2>Verify Your Email</h2>
-      <p class="sub" id="verifyForLabel">To confirm this consent, verify your email address.</p>
-      <div class="field" id="emailField">
+      <p class="sub-p" id="verifyForLabel">To confirm this consent, verify your email address.</p>
+      <div class="field">
         <label for="emailInput">Email Address</label>
         <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
       </div>
       <div class="error-msg" id="contactError"></div>
       <button class="primary-btn" id="sendOtpBtn">Send OTP</button>
     </div>
-
     <div class="otp-section" id="otpSection">
-      <p class="sub" id="otpSentTo" style="margin-bottom:14px;">We've sent a 6-digit code to your registered contact.</p>
+      <p class="sub-p" id="otpSentTo">We've sent a 6-digit code to your registered contact.</p>
       <div class="otp-row">
-        <input type="text" maxlength="1" inputmode="numeric">
-        <input type="text" maxlength="1" inputmode="numeric">
-        <input type="text" maxlength="1" inputmode="numeric">
-        <input type="text" maxlength="1" inputmode="numeric">
-        <input type="text" maxlength="1" inputmode="numeric">
-        <input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric"><input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric"><input type="text" maxlength="1" inputmode="numeric">
+        <input type="text" maxlength="1" inputmode="numeric"><input type="text" maxlength="1" inputmode="numeric">
       </div>
       <div class="error-msg" id="otpError"></div>
       <button class="primary-btn" id="confirmOtpBtn">Confirm</button>
       <button class="link-btn" id="resendBtn">Resend OTP</button>
       <button class="link-btn" id="changeEmailBtn">Use a different email</button>
     </div>
-
     <div class="success-box" id="successBox">
       <div class="success-icon">✓</div>
       <h2>Consent Confirmed</h2>
-      <p class="sub">Your choice for "<span id="successItemName"></span>" has been verified and saved.</p>
+      <p class="sub-p">Your choice for "<span id="successItemName"></span>" has been verified and saved.</p>
       <button class="primary-btn" id="closeVerifyBtn">Done</button>
     </div>
   </div>
 </div>
 
+<!-- details popup -->
+<div class="modal" id="detailPanel">
+  <div class="modal-card">
+    <button class="modal-close" id="detailClose" aria-label="Close">✕</button>
+    <h2 id="detailTitle"></h2>
+    <p class="sub-p" id="detailDesc"></p>
+    <div class="detail-list" id="detailList"></div>
+  </div>
+</div>
+
 <script>
   // =========================================================
-  // CONFIG — no secrets here. Edit only these values.
+  // CONFIG
   // =========================================================
-  const CONSENTS_GET_URL = '/myslt/api/v1/customer/consents';
-
-  // Email OTP endpoints (set these to your real ConsentHub API routes).
-  const OTP_SEND_URL   = '/myslt/api/v1/customer/otp/send';     // POST {channel:'EMAIL', email, consentId}
-  const OTP_VERIFY_URL = '/myslt/api/v1/customer/otp/verify';   // POST {channel:'EMAIL', email, otp, reference, consentId}
-
-  // Endpoint that saves Accept/Decline ({id} = customerConsentId). Must be created on the ConsentHub API.
-  const CONSENT_SAVE_URL = '/myslt/api/v1/customer/consents/{id}';
-
-  // Fallback only, used if the API has no "mandatory" field for a consent.
+  const CONSENTS_GET_URL = '/api/v1/customer/consents';
+  const OTP_SEND_URL   = '/api/v1/customer/otp/send';
+  const OTP_VERIFY_URL = '/api/v1/customer/otp/verify';
+  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
   const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
 
-  // TEMPORARY: used only when the API sends no longer description.
-  // Remove once /api/v1/customer/consents returns the full scope description.
+  // TEMPORARY fallback descriptions
   const DESCRIPTION_FALLBACK = {
     'TNC_001': "I have read and agree to SLT's Terms & Conditions governing the provision, use, and billing of my service(s).",
     'PRIV_001': "I have read and agree to SLT's Privacy Policy and consent to SLT collecting, storing, and processing my personal data to provide and manage my service(s).",
@@ -307,16 +178,10 @@
   };
 
   // =========================================================
-  // STATE — must be declared before anything below uses it
-  // (declaring these further down caused a ReferenceError that
-  //  stopped the whole script, so nothing ever loaded)
+  // STATE (declare before use)
   // =========================================================
-  // Selected display language (EN/SI/TA). Persisted so it survives a reload.
-  let currentLang = (() => {
-    try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; }
-  })();
-
-  let lastLoadedList = [];   // cached so switching language re-renders without a re-fetch
+  let currentLang = (() => { try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; } })();
+  let lastLoadedList = [];
   let currentItem = null;
   let currentConsentId = null;
 
@@ -325,11 +190,18 @@
   // =========================================================
   const esc = s => String(s ?? '').replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
   const pick = (o, keys) => { for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k]; return ''; };
-
   function getToken() { return sessionStorage.getItem('customerToken') || ''; }
 
+  // "12 Oct 2026, 13:38"
+  function fmtDateTime(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date + ', ' + time;
+  }
   function fmtDate(v) {
     if (!v) return '';
     const d = new Date(v);
@@ -346,8 +218,6 @@
     return [];
   }
 
-  // Scans the record (including nested objects such as "scope") for any
-  // description-like field and returns the longest text found.
   function findDescription(r) {
     const found = [];
     const scan = (o) => {
@@ -361,66 +231,49 @@
     return found.sort((a, b) => b.length - a.length)[0] || '';
   }
 
+  // Customer name: from API response if present, else from session, else blank
+  function extractCustomerName(json) {
+    const d = (json && json.data) || json || {};
+    const c = d.customer || json.customer || {};
+    return pick(d, ['customerName', 'fullName', 'name']) || pick(c, ['customerName', 'fullName', 'name'])
+      || sessionStorage.getItem('customerName') || '';
+  }
+
   // =========================================================
-  // views (login happens on login.html; this page only reads the saved token)
+  // views
   // =========================================================
   const consentView = document.getElementById('consentView');
   const logoutBtn = document.getElementById('logoutBtn');
   const verifyPanel = document.getElementById('verifyPanel');
+  const detailPanel = document.getElementById('detailPanel');
 
-  function goToLogin() {
-    sessionStorage.removeItem('customerToken');
-    window.location.replace('login.html');
-  }
-  function showConsents() {
-    consentView.style.display = 'flex';
-    logoutBtn.style.display = 'inline-block';
-  }
+  function goToLogin() { sessionStorage.removeItem('customerToken'); window.location.replace('login.html'); }
+  function showConsents() { consentView.style.display = 'block'; logoutBtn.style.display = 'inline-block'; }
   logoutBtn.addEventListener('click', goToLogin);
 
   const langSelect = document.getElementById('langSelect');
   langSelect.value = currentLang;
   langSelect.addEventListener('change', () => {
     currentLang = langSelect.value;
-    try { localStorage.setItem('myslt-lang', currentLang); } catch (_) { /* not persisted */ }
-    renderConsentList(lastLoadedList); // re-render from the cached list, no re-fetch needed
+    try { localStorage.setItem('myslt-lang', currentLang); } catch (_) {}
+    renderConsentList(lastLoadedList);
   });
 
-  // =========================================================
-  // tabs
-  // =========================================================
-  const tabMandatoryBtn = document.getElementById('tabMandatoryBtn');
-  const tabOtherBtn = document.getElementById('tabOtherBtn');
   const panelMandatory = document.getElementById('panelMandatory');
   const panelOther = document.getElementById('panelOther');
 
-  tabMandatoryBtn.addEventListener('click', () => {
-    tabMandatoryBtn.classList.add('active'); tabOtherBtn.classList.remove('active');
-    panelMandatory.classList.add('active'); panelOther.classList.remove('active');
-  });
-  tabOtherBtn.addEventListener('click', () => {
-    tabOtherBtn.classList.add('active'); tabMandatoryBtn.classList.remove('active');
-    panelOther.classList.add('active'); panelMandatory.classList.remove('active');
-  });
-
   // =========================================================
-  // build cards from the API records
+  // normalise API record
   // =========================================================
   function normalise(r) {
     const scope = (r.scope && typeof r.scope === 'object') ? r.scope
                 : (r.consentScope && typeof r.consentScope === 'object') ? r.consentScope
-                : (r.catalog && typeof r.catalog === 'object') ? r.catalog
-                : {};
+                : (r.catalog && typeof r.catalog === 'object') ? r.catalog : {};
     const merged = { ...scope, ...r };
-
-    // CMS sends card text per language under r.texts = { EN: {title, statement}, SI: {...}, TA: {...} }.
-    // Use whichever language is selected, falling back to English, then to the
-    // older flat fields (consentName/description) for anything that doesn't send texts.
     const textForLang = (r.texts && (r.texts[currentLang] || r.texts.EN)) || null;
 
     const scopeId = pick(merged, ['scopeId', 'scope_id', 'consentScopeId']);
     const code = pick(merged, ['consentCode', 'scopeCode', 'code']);
-    const consentType = pick(merged, ['categoryName', 'consentType', 'category']);
     const name = textForLang?.title || pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
     const status = String(pick(merged, ['status', 'consentStatus', 'customerStatus'])).toUpperCase();
     const active = pick(merged, ['active', 'isActive']);
@@ -428,129 +281,111 @@
     if (mandatory === '') mandatory = MANDATORY_CONSENT_CODES.includes(code);
     return {
       id: pick(merged, ['customerConsentId', 'consentId', 'id']) || scopeId,
-      scopeId, code, name, consentType, status,
+      scopeId, code, name, status,
+      consentType: pick(merged, ['categoryName', 'consentType', 'category']),
       purposeName: pick(merged, ['purposeName', 'purpose']),
       channel: pick(merged, ['channelCode', 'channel', 'grantChannel']),
       grantedOn: pick(merged, ['consentDateTime', 'grantedAt', 'grantedDate']),
       withdrawnOn: pick(merged, ['withdrawalDateTime', 'withdrawnAt', 'revokedAt']),
       active: active === '' ? null : (active === true || active === 'true' || active === 'Active'),
-      mandatory: mandatory === true || mandatory === 1 ||
-                 ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
+      mandatory: mandatory === true || mandatory === 1 || ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
       description: (() => {
         if (textForLang?.statement) return textForLang.statement;
         const fromApi = findDescription(r);
         const fb = DESCRIPTION_FALLBACK[code] || DESCRIPTION_FALLBACK[scopeId] || '';
         return fb.length > fromApi.length ? fb : fromApi;
       })(),
-      acceptLabel: textForLang?.grantButtonLabel || 'Accept',
-      declineLabel: textForLang?.revokeButtonLabel || 'Decline',
-      data: [].concat(r.data || []).join(', '),
-      action: [].concat(r.action || []).join(', '),
-      usedBy: [].concat(r.usedBy || []).join(', '),
-      validFor: r.validFor || '',
       version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
       effectiveFrom: pick(merged, ['validFrom', 'effectiveFrom', 'consentDateTime', 'grantedAt', 'createdAt']),
       effectiveTo: pick(merged, ['validTo', 'effectiveTo', 'expiresAt'])
     };
   }
 
-  function buildConsentCard(raw) {
+  // =========================================================
+  // build cards
+  // =========================================================
+  function buildConsentCard(raw, idx) {
     const c = normalise(raw);
     const accepted = ['GRANTED', 'ACTIVE', 'ACCEPTED'].includes(c.status);
-    const declined = ['REVOKED', 'DENIED', 'DECLINED', 'WITHDRAWN'].includes(c.status);
-    const statusClass = accepted ? 'on' : (declined ? '' : 'pending');
-    const statusLabel = c.status.replace(/_/g, ' ').toLowerCase();
 
     const item = document.createElement('div');
-    item.className = 'consent-item ' + (accepted ? 's-on' : declined ? 's-off' : 's-pending');
+    item.className = 'card';
     item.dataset.consentId = c.id;
-    item.dataset.consentCode = c.code;
     item.dataset.consentName = c.name;
     item.dataset.mandatory = c.mandatory ? '1' : '0';
+    item.dataset.index = idx;
+    item.dataset.accepted = accepted ? '1' : '0';
 
-    const detailRow = (label, value) => value
-      ? `<div class="detail"><span class="dlabel">${esc(label)}</span><span class="dval">${esc(value)}</span></div>` : '';
+    const sub = c.consentType || c.purposeName;
+    const stamp = accepted ? fmtDateTime(c.grantedOn) : '';
 
     item.innerHTML = `
-      <div class="card-head">
-        <div class="c-icon">
-          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-        </div>
-        <div class="c-title">
+      <div class="card-top">
+        <div>
           <h3>${esc(c.name)}</h3>
-          <div class="tags">
-            ${c.mandatory ? '<span class="lock-tag">Mandatory</span>' : ''}
-            ${c.status ? `<span class="status-tag ${statusClass}">${esc(statusLabel)}</span>` : ''}
-            ${c.active === false ? '<span class="status-tag">Inactive</span>' : ''}
-          </div>
+          ${sub ? `<div class="sub">${esc(sub)}</div>` : ''}
         </div>
+        <button class="switch ${accepted ? 'on' : ''}" role="switch" aria-checked="${accepted}"
+          aria-label="${esc(c.name)}" ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}></button>
       </div>
-      ${c.description ? `<p class="c-desc">${esc(c.description)}</p>` : ''}
-      <div class="detail-grid">
-        ${detailRow('Data', c.data)}
-        ${detailRow('Action', c.action)}
-        ${detailRow('Used By', c.usedBy)}
-        ${detailRow('Valid For', c.validFor)}
-        ${detailRow('Consent Type', c.consentType)}
-        ${detailRow('Purpose', c.purposeName)}
-        ${detailRow('Version', c.version)}
-        ${detailRow('Channel', c.channel)}
-        ${detailRow('Responded On', fmtDate(c.grantedOn))}
-        ${detailRow('Effective From', fmtDate(c.effectiveFrom))}
-        ${detailRow('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—')}
-        ${detailRow('Withdrawn On', fmtDate(c.withdrawnOn))}
-      </div>
-      <div class="choice-row">
-        <button class="choice-btn accept ${accepted ? 'selected' : ''}" data-choice="accept">✓ ${esc(c.acceptLabel)}</button>
-        <button class="choice-btn decline ${declined ? 'selected' : ''}" data-choice="decline"
-          ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}>${esc(c.declineLabel)}</button>
+      <div class="card-foot">
+        ${stamp ? `<span class="stamp">${esc(stamp)}</span>` : ''}
+        <button class="view-btn" data-view="1">View details</button>
       </div>`;
+    item._data = c;
     return item;
   }
 
-  // =========================================================
-  // load consents from the API
-  // =========================================================
   function renderConsentList(list) {
     panelMandatory.innerHTML = '';
     panelOther.innerHTML = '';
     let mCount = 0, oCount = 0;
-
-    list.forEach(record => {
-      const card = buildConsentCard(record);
+    list.forEach((record, i) => {
+      const card = buildConsentCard(record, i);
       if (card.dataset.mandatory === '1') { panelMandatory.appendChild(card); mCount++; }
       else { panelOther.appendChild(card); oCount++; }
     });
-
     const empty = '<p class="empty-msg">Nothing to show here.</p>';
     if (!mCount) panelMandatory.innerHTML = empty;
     if (!oCount) panelOther.innerHTML = empty;
-    document.getElementById('countMandatory').textContent = mCount;
-    document.getElementById('countOther').textContent = oCount;
   }
 
+  // details popup
+  function openDetails(c) {
+    document.getElementById('detailTitle').textContent = c.name;
+    document.getElementById('detailDesc').textContent = c.description || '';
+    const row = (l, v) => v ? `<div class="detail"><span class="dlabel">${esc(l)}</span><span class="dval">${esc(v)}</span></div>` : '';
+    document.getElementById('detailList').innerHTML = [
+      row('Consent Type', c.consentType), row('Purpose', c.purposeName), row('Version', c.version),
+      row('Channel', c.channel), row('Status', c.status.replace(/_/g, ' ').toLowerCase()),
+      row('Responded On', fmtDateTime(c.grantedOn)), row('Effective From', fmtDate(c.effectiveFrom)),
+      row('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—'), row('Withdrawn On', fmtDateTime(c.withdrawnOn))
+    ].join('');
+    detailPanel.classList.add('open');
+  }
+  document.getElementById('detailClose').addEventListener('click', () => detailPanel.classList.remove('open'));
+  detailPanel.addEventListener('click', e => { if (e.target === detailPanel) detailPanel.classList.remove('open'); });
+
+  // =========================================================
+  // load consents
+  // =========================================================
   async function loadConsents() {
     const loadingMsg = document.getElementById('loadingMsg');
     const loadErrorMsg = document.getElementById('loadErrorMsg');
     loadingMsg.style.display = 'block';
     loadErrorMsg.style.display = 'none';
-
     try {
       const token = getToken();
       if (!token) { goToLogin(); return; }
-
       const res = await fetch(CONSENTS_GET_URL, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
+        method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
       });
-
       if (res.status === 401) { goToLogin(); return; }
       if (!res.ok) throw new Error('Request failed with status ' + res.status);
-
       const json = await res.json();
       lastLoadedList = extractList(json);
+      document.getElementById('customerName').textContent = extractCustomerName(json) || 'My Account';
       renderConsentList(lastLoadedList);
-
       loadingMsg.style.display = 'none';
     } catch (err) {
       loadingMsg.style.display = 'none';
@@ -595,7 +430,7 @@
     });
     if (res.status === 401) { goToLogin(); throw new Error('Your session expired. Please log in again.'); }
     let json = {};
-    try { json = await res.json(); } catch (_) { /* empty body */ }
+    try { json = await res.json(); } catch (_) {}
     if (!res.ok) throw new Error(json.message || json.error || ('Request failed (' + res.status + ')'));
     return json;
   }
@@ -614,7 +449,6 @@
     confirmOtpBtn.disabled = false; confirmOtpBtn.textContent = 'Confirm';
   }
 
-  // Accept clicked -> open the email verification popup for that consent
   function openVerify(item) {
     currentConsentId = item.dataset.consentId;
     currentItem = item.dataset.consentName;
@@ -637,7 +471,6 @@
     resendTimer = setInterval(tick, 1000);
   }
 
-  // Step 1: ask the server to email the OTP
   async function requestOtp(isResend) {
     const errorEl = document.getElementById(isResend ? 'otpError' : 'contactError');
     errorEl.textContent = '';
@@ -650,7 +483,6 @@
       const d = json.data || json;
       otpReference = d.reference || d.otpId || d.requestId || '';
       contactValue = email;
-      // confirmation message
       document.getElementById('otpSentTo').textContent = "We've sent a 6-digit code to " + email + ". Enter it below to confirm.";
       contactBox.style.display = 'none';
       otpSection.classList.add('open');
@@ -664,7 +496,6 @@
     }
   }
 
-  // Step 2: verify the OTP, then save the Accept
   async function confirmOtp() {
     const code = Array.from(otpInputs).map(i => i.value).join('');
     const errorEl = document.getElementById('otpError');
@@ -673,9 +504,7 @@
 
     confirmOtpBtn.disabled = true; confirmOtpBtn.textContent = 'Verifying…';
     try {
-      await postJson(OTP_VERIFY_URL, {
-        channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId
-      });
+      await postJson(OTP_VERIFY_URL, { channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId });
       await saveChoice(currentConsentId, 'accept');
       clearInterval(resendTimer);
       otpSection.classList.remove('open');
@@ -689,7 +518,7 @@
   }
 
   sendOtpBtn.addEventListener('click', () => requestOtp(false));
-  emailInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') requestOtp(false); });
+  emailInput.addEventListener('keydown', e => { if (e.key === 'Enter') requestOtp(false); });
   resendBtn.addEventListener('click', () => requestOtp(true));
   confirmOtpBtn.addEventListener('click', confirmOtp);
   document.getElementById('changeEmailBtn').addEventListener('click', () => {
@@ -704,11 +533,11 @@
       input.value = input.value.replace(/[^0-9]/g, '');
       if (input.value && idx < otpInputs.length - 1) otpInputs[idx + 1].focus();
     });
-    input.addEventListener('keydown', (e) => {
+    input.addEventListener('keydown', e => {
       if (e.key === 'Backspace' && !input.value && idx > 0) otpInputs[idx - 1].focus();
       if (e.key === 'Enter') confirmOtp();
     });
-    input.addEventListener('paste', (e) => {
+    input.addEventListener('paste', e => {
       const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, otpInputs.length);
       if (!digits) return;
       e.preventDefault();
@@ -717,25 +546,24 @@
     });
   });
 
-  // Accept -> email OTP flow. Decline -> saved directly.
-  document.querySelector('.content-col').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.choice-btn');
-    if (!btn || btn.disabled) return;
-    const item = btn.closest('.consent-item');
+  // Click handling: View details / toggle (ON -> email OTP, OFF -> save decline)
+  document.querySelector('.page').addEventListener('click', async (e) => {
+    const item = e.target.closest('.card');
+    if (!item) return;
 
-    if (btn.dataset.choice === 'accept') {
-      if (item.classList.contains('s-on')) return;   // already accepted
-      openVerify(item);
-      return;
-    }
+    if (e.target.closest('.view-btn')) { openDetails(item._data); return; }
 
-    const buttons = item.querySelectorAll('.choice-btn');
-    buttons.forEach(b => b.disabled = true);
+    const sw = e.target.closest('.switch');
+    if (!sw || sw.disabled) return;
+
+    if (item.dataset.accepted !== '1') { openVerify(item); return; }  // turning ON
+
+    sw.disabled = true;                                                // turning OFF
     try {
       await saveChoice(item.dataset.consentId, 'decline');
       await loadConsents();
     } catch (err) {
-      buttons.forEach(b => { b.disabled = item.dataset.mandatory === '1' && b.dataset.choice === 'decline'; });
+      sw.disabled = false;
       const errEl = document.getElementById('loadErrorMsg');
       errEl.style.display = 'block';
       errEl.textContent = "Couldn't save your choice: " + err.message;
@@ -745,13 +573,10 @@
   const closeModal = () => { clearInterval(resendTimer); verifyPanel.classList.remove('open'); loadConsents(); };
   document.getElementById('closeVerifyBtn').addEventListener('click', closeModal);
   document.getElementById('modalClose').addEventListener('click', closeModal);
-  verifyPanel.addEventListener('click', (e) => { if (e.target === verifyPanel) closeModal(); });
+  verifyPanel.addEventListener('click', e => { if (e.target === verifyPanel) closeModal(); });
 
-  // =========================================================
   // start
-  // =========================================================
   if (getToken()) { showConsents(); loadConsents(); } else { goToLogin(); }
 </script>
-
 </body>
 </html>
