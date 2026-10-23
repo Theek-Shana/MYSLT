@@ -4,72 +4,151 @@
 <meta charset="UTF-8">
 <title>SLT Mobitel - Sign In</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--navy-dark:#081f45;--panel:#123a75;--text-faint:#9fb3d6}
+:root{
+  --bg:#f4f7fb; --card:#fff; --border:#dbe3ef; --text:#0f172a; --dim:#5b6b88; --faint:#8a99b5;
+  --blue:#2f7fe0; --blue-d:#1e63c9; --green:#3ecf6e; --danger:#dc2626; --ok:#15803d;
+}
 *{box-sizing:border-box}
-body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--navy-dark);min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
-body::before{content:"";position:absolute;top:0;left:0;right:0;height:6px;background:linear-gradient(90deg,#7a2b2b,#4a1414)}
-.deco{position:absolute;width:60px;height:6px;background:linear-gradient(90deg,#2196f3,#3ecf6e);border-radius:4px;transform:rotate(-45deg);opacity:.85}
-.card{display:flex;width:900px;max-width:92vw;background:var(--panel);border-radius:6px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);z-index:2}
-.visual{flex:1.05;background:#05203b linear-gradient(160deg,#0a3d67,#04182e);min-height:520px;overflow:hidden}
-.visual img{width:100%;height:100%;object-fit:cover;display:block}
-.form-side{flex:1;padding:44px 42px;display:flex;flex-direction:column;color:#fff}
-.logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-.mark{width:26px;height:26px;background:linear-gradient(180deg,#2196f3,#3ecf6e);clip-path:polygon(0 100%,40% 0,60% 0,20% 100%)}
-.word{font-size:20px;font-weight:800;letter-spacing:.5px}.word span{color:#3ecf6e}
-.tag{font-size:10px;color:var(--text-faint);margin:0 0 28px 36px}
-h1{font-size:20px;margin:0 0 22px}
-.field{border-bottom:1px solid rgba(255,255,255,.18);padding:10px 2px 12px}
-.field label{font-size:12px;color:var(--text-faint)}.req{color:#ff6666}
-.field input{width:100%;background:transparent;border:none;outline:none;color:#fff;font-size:15px;padding:4px 0 2px}
-.field input::placeholder{color:#7c93bd}
-.pw{display:flex;align-items:flex-end;justify-content:space-between}.pw-wrap{flex:1}
-.eye{background:none;border:none;cursor:pointer;color:var(--text-faint);font-size:16px;padding-bottom:6px}
-.error-msg{color:#ff8a8a;font-size:12px;margin-top:6px;min-height:14px}
-.success-msg{color:#8effb0;font-size:13px;margin-top:10px;text-align:center;display:none}
-.row{display:flex;align-items:center;justify-content:space-between;margin-top:22px}
-.forgot{color:var(--text-faint);font-size:13px;cursor:pointer}.forgot:hover{text-decoration:underline}
-.signin-btn{background:#2f7fe0;color:#fff;border:none;border-radius:6px;padding:11px 30px;font-size:14px;font-weight:600;cursor:pointer}
-.signin-btn:hover{background:#2668c2}.signin-btn:disabled{opacity:.6;cursor:wait}
-.divider{display:flex;align-items:center;gap:12px;margin:26px 0 18px;color:var(--text-faint);font-size:12px}
-.divider::before,.divider::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.15)}
-.social{display:flex;gap:14px}
-.social button{width:44px;height:44px;border-radius:6px;border:none;background:#fff;cursor:pointer;font-weight:700;font-size:18px}
+body{
+  margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  font-family:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif; color:var(--text);
+  background:
+    radial-gradient(800px 500px at 100% 0%, rgba(47,127,224,.18), transparent 60%),
+    radial-gradient(700px 500px at 0% 100%, rgba(62,207,110,.16), transparent 60%),
+    var(--bg);
+}
+.card{
+  display:flex; width:960px; max-width:100%; min-height:580px; background:var(--card);
+  border:1px solid var(--border); border-radius:24px; overflow:hidden;
+  box-shadow:0 30px 80px -30px rgba(15,40,90,.35); animation:rise .5s ease both;
+}
+@keyframes rise{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+
+/* left visual */
+.visual{
+  flex:1.05; position:relative; overflow:hidden; color:#fff;
+  background:linear-gradient(155deg,#0b3a78 0%,#0a2a5a 55%,#061a3a 100%);
+  display:flex; flex-direction:column; justify-content:flex-end; padding:36px;
+}
+.visual img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.55;}
+.visual::before,.visual::after{content:""; position:absolute; border-radius:50%; filter:blur(2px);}
+.visual::before{width:320px; height:320px; right:-110px; top:-90px; background:radial-gradient(circle,rgba(62,207,110,.55),transparent 70%);}
+.visual::after{width:360px; height:360px; left:-130px; bottom:-140px; background:radial-gradient(circle,rgba(47,127,224,.6),transparent 70%);}
+.visual .shade{position:absolute; inset:0; background:linear-gradient(180deg,rgba(6,26,58,0) 35%,rgba(6,26,58,.85));}
+.visual .copy{position:relative; z-index:2;}
+.visual h2{margin:0 0 8px; font-size:28px; line-height:1.2; font-weight:800; letter-spacing:-.3px;}
+.visual p{margin:0; font-size:14px; line-height:1.6; color:#c6d6f2; max-width:320px;}
+.pills{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap;}
+.pills span{font-size:11px; font-weight:600; padding:6px 12px; border-radius:20px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22); backdrop-filter:blur(6px);}
+
+/* right form */
+.form-side{flex:1; padding:48px 46px; display:flex; flex-direction:column;}
+.logo{display:flex; align-items:center; gap:10px;}
+.mark{width:28px; height:28px; background:linear-gradient(180deg,var(--blue),var(--green)); clip-path:polygon(0 100%,40% 0,60% 0,20% 100%);}
+.word{font-size:21px; font-weight:800; letter-spacing:.3px; color:var(--text);}
+.word span{color:var(--green);}
+.tag{font-size:11px; color:var(--faint); margin:2px 0 30px 38px;}
+h1{font-size:28px; font-weight:800; margin:0 0 6px; letter-spacing:-.4px;}
+.lead{margin:0 0 26px; font-size:14px; color:var(--dim);}
+
+.field{margin-bottom:16px;}
+.field label{display:block; font-size:12.5px; font-weight:600; color:var(--dim); margin-bottom:7px;}
+.req{color:var(--danger);}
+.input-wrap{position:relative; display:flex; align-items:center;}
+.input-wrap svg.ico{position:absolute; left:14px; width:18px; height:18px; stroke:var(--faint); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; pointer-events:none;}
+.input-wrap input{
+  width:100%; height:50px; padding:0 46px 0 44px; font:500 15px 'Plus Jakarta Sans',Arial,sans-serif; color:var(--text);
+  background:#f8fafd; border:1px solid var(--border); border-radius:12px; outline:none; transition:.15s;
+}
+.input-wrap input::placeholder{color:#9aa8c2;}
+.input-wrap input:focus{background:#fff; border-color:var(--blue); box-shadow:0 0 0 4px rgba(47,127,224,.15);}
+.eye{position:absolute; right:6px; width:38px; height:38px; border:none; background:none; cursor:pointer; color:var(--faint); font-size:16px; border-radius:10px;}
+.eye:hover{background:#eef3fb; color:var(--text);}
+
+.error-msg{color:var(--danger); font-size:13px; min-height:18px; margin:2px 0 4px;}
+.success-msg{color:var(--ok); font-size:13px; font-weight:600; margin-top:12px; text-align:center; display:none; background:#ecfdf3; border:1px solid #bbf0cf; border-radius:10px; padding:10px;}
+
+.row{display:flex; align-items:center; justify-content:space-between; margin-top:6px; gap:14px;}
+.forgot{color:var(--blue-d); font-size:13px; font-weight:600; cursor:pointer; text-decoration:none;}
+.forgot:hover{text-decoration:underline;}
+.signin-btn{
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:linear-gradient(90deg,var(--blue-d),var(--blue)); color:#fff; border:none; border-radius:12px;
+  padding:13px 34px; font:700 15px 'Plus Jakarta Sans',Arial,sans-serif; cursor:pointer; transition:.15s;
+  box-shadow:0 10px 24px -10px rgba(47,127,224,.8);
+}
+.signin-btn:hover{transform:translateY(-1px); filter:brightness(1.07);}
+.signin-btn:disabled{opacity:.7; cursor:wait; transform:none;}
+.signin-btn.loading::before{content:""; width:15px; height:15px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.divider{display:flex; align-items:center; gap:12px; margin:26px 0 18px; color:var(--faint); font-size:12px;}
+.divider::before,.divider::after{content:""; flex:1; height:1px; background:var(--border);}
+.social{display:flex; gap:12px;}
+.social button{
+  flex:1; height:46px; border-radius:12px; border:1px solid var(--border); background:#fff; cursor:pointer;
+  font:700 15px 'Plus Jakarta Sans',Arial,sans-serif; transition:.15s;
+}
+.social button:hover{background:#f4f7fb; transform:translateY(-1px);}
 .g{color:#ea4335}.f{color:#1877f2}
-.register{margin-top:auto;padding-top:20px;font-size:13px;color:var(--text-faint)}
-.register a{color:#4da3ff;text-decoration:none;font-weight:600}
-@media(max-width:720px){.card{flex-direction:column;width:94vw}.visual{min-height:260px}}
+.register{margin-top:auto; padding-top:22px; font-size:13.5px; color:var(--dim); text-align:center;}
+.register a{color:var(--blue-d); text-decoration:none; font-weight:700;}
+.register a:hover{text-decoration:underline;}
+
+@media(max-width:780px){
+  .card{flex-direction:column; min-height:0;}
+  .visual{min-height:190px; padding:24px;} .visual h2{font-size:22px;} .visual p,.pills{display:none;}
+  .form-side{padding:32px 24px;}
+}
 </style>
 </head>
 <body>
-<div class="deco" style="top:6%;left:88%"></div><div class="deco" style="top:40%;left:92%"></div>
-<div class="deco" style="top:2%;left:4%"></div><div class="deco" style="top:85%;left:8%"></div>
 
 <div class="card">
-  <div class="visual"><img src="images/fibreon-banner.png" alt="SLT Mobitel Fibre" onerror="this.style.display='none'"></div>
+  <div class="visual">
+    <img src="images/fibreon-banner.png" alt="SLT Mobitel Fibre" onerror="this.style.display='none'">
+    <div class="shade"></div>
+    <div class="copy">
+      <h2>Your connection,<br>your choices.</h2>
+      <p>Sign in to manage your services and control how your data is used.</p>
+      <div class="pills"><span>Secure</span><span>Private</span><span>In your control</span></div>
+    </div>
+  </div>
+
   <div class="form-side">
     <div class="logo"><div class="mark"></div><div class="word">SLT<span>MOBITEL</span></div></div>
     <div class="tag">The Connection</div>
-    <h1>Sign In</h1>
+    <h1>Welcome back</h1>
+    <p class="lead">Sign in to continue to your account.</p>
+
     <form id="loginForm" novalidate>
       <div class="field">
         <label for="userId">User ID <span class="req">*</span></label>
-        <input type="text" id="userId" placeholder="Email or mobile number" autocomplete="username">
-      </div>
-      <div class="field pw">
-        <div class="pw-wrap">
-          <label for="password">Password <span class="req">*</span></label>
-          <input type="password" id="password" placeholder="Minimum 6 characters" autocomplete="current-password">
+        <div class="input-wrap">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <input type="text" id="userId" placeholder="Email or mobile number" autocomplete="username">
         </div>
-        <button type="button" class="eye" id="toggleEye" aria-label="Show password">👁</button>
+      </div>
+      <div class="field">
+        <label for="password">Password <span class="req">*</span></label>
+        <div class="input-wrap">
+          <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          <input type="password" id="password" placeholder="Minimum 6 characters" autocomplete="current-password">
+          <button type="button" class="eye" id="toggleEye" aria-label="Show password">👁</button>
+        </div>
       </div>
       <div class="error-msg" id="errorMsg"></div>
       <div class="row">
-        <a class="forgot" id="forgotLink">Forgot Password ?</a>
+        <a class="forgot" id="forgotLink" href="#">Forgot Password ?</a>
         <button type="submit" class="signin-btn">Sign In</button>
       </div>
       <div class="success-msg" id="successMsg"></div>
     </form>
+
     <div class="divider">Or Sign In With</div>
     <div class="social"><button class="g" title="Google">G</button><button class="f" title="Facebook">f</button></div>
     <div class="register">Don't have an account? <a href="#" id="registerLink">Register</a></div>
@@ -117,6 +196,7 @@ h1{font-size:20px;margin:0 0 22px}
 
     const btn = form.querySelector('.signin-btn');
     btn.disabled = true;
+    btn.classList.add('loading');
     try {
       const res = await fetch(LOGIN_URL, {
         method: 'POST',
@@ -144,6 +224,7 @@ h1{font-size:20px;margin:0 0 22px}
         : err.message;
     } finally {
       btn.disabled = false;
+      btn.classList.remove('loading');
     }
   });
 
