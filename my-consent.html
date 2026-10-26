@@ -86,6 +86,155 @@
   @media (max-width:600px){
     .topbar{padding:10px 14px;} .grid{grid-template-columns:1fr;} .name-card{font-size:20px;}
   }
+
+  /* =====================================================================
+     SLT-MOBITEL THEME OVERRIDES (these come last so they win)
+     ===================================================================== */
+  :root{
+    --slt-deep:#073b7a; --slt-blue:#0a5cb8; --slt-sky:#0a7ad6; --slt-green:#3fa535; --slt-lime:#7ac143;
+    --link:var(--slt-blue); --on:var(--slt-green); --accent:var(--slt-sky);
+    --border:#dbe6f3; --dim:#4b5d73; --faint:#6b7c93;
+  }
+
+  /* base + background */
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(rgba(10,92,184,.07) 1px, transparent 1.2px) 0 0/22px 22px,
+      linear-gradient(180deg,#eaf3fc 0%,#f4f9f3 55%,#f7fafc 100%);
+    background-attachment:fixed; overflow-x:hidden;
+  }
+  body::before,body::after{content:""; position:fixed; z-index:-1; pointer-events:none; border-radius:50%; filter:blur(10px);}
+  body::before{
+    width:clamp(320px,50vw,620px); height:clamp(320px,50vw,620px); top:-12%; right:-8%;
+    background:radial-gradient(circle at 40% 40%,rgba(10,122,214,.26),transparent 68%);
+    animation:sltDriftA 24s ease-in-out infinite alternate;
+  }
+  body::after{
+    width:clamp(300px,46vw,560px); height:clamp(300px,46vw,560px); bottom:-14%; left:-10%;
+    background:radial-gradient(circle at 60% 60%,rgba(95,179,53,.24),transparent 68%);
+    animation:sltDriftB 28s ease-in-out infinite alternate;
+  }
+  @keyframes sltDriftA{to{transform:translate(-60px,50px) scale(1.12);}}
+  @keyframes sltDriftB{to{transform:translate(70px,-40px) scale(1.1);}}
+
+  /* top bar */
+  .topbar{
+    padding:10px clamp(12px,3vw,32px); gap:10px; border-bottom:none;
+    background:rgba(255,255,255,.82); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    box-shadow:0 6px 18px -14px rgba(7,59,122,.5);
+  }
+  .topbar::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:2px;
+    background:linear-gradient(90deg,var(--slt-blue),var(--slt-lime),var(--slt-sky),var(--slt-blue));
+    background-size:200% 100%; animation:sltFlow 7s linear infinite;
+  }
+  @keyframes sltFlow{to{background-position:-200% 0;}}
+  .brand{font-size:16px; letter-spacing:.2px; color:var(--slt-deep);}
+  .brand span{color:var(--slt-green);}
+  .top-btn{font-size:12.5px; padding:7px 12px; border-radius:8px; transition:background .2s,border-color .2s,transform .15s;}
+  .top-btn:hover{background:#eef5fc; border-color:#b9d3ee;}
+  .top-btn:active{transform:scale(.97);}
+  #langSelect{font-size:12.5px; padding:6px 8px; border-radius:8px;}
+
+  /* page + headings */
+  .page{margin:20px auto 48px; padding:0 clamp(12px,3vw,20px);}
+  h1{font-size:clamp(17px,2.4vw,20px); margin:0 0 16px; color:var(--slt-deep);}
+  h2{font-size:15px; display:flex; align-items:center; gap:8px; color:var(--slt-deep);}
+  h2::before{content:""; width:4px; height:15px; border-radius:3px; background:linear-gradient(180deg,var(--slt-sky),var(--slt-green));}
+  .section{margin-bottom:26px;}
+  .section-note{font-size:13px; margin:0 0 10px; padding-left:12px;}
+
+  /* customer name banner */
+  .name-card{
+    position:relative; overflow:hidden; border:none; color:#fff;
+    font-size:clamp(16px,2.2vw,19px); font-weight:700; padding:16px 20px; margin-bottom:22px; border-radius:14px;
+    background:linear-gradient(120deg,var(--slt-deep),var(--slt-blue) 58%,#1b93dc);
+    box-shadow:0 14px 26px -16px rgba(10,92,184,.7);
+  }
+  .name-card::before{
+    content:""; position:absolute; right:-70px; top:-110px; width:300px; height:300px; border-radius:50%;
+    background:repeating-radial-gradient(circle,rgba(255,255,255,.16) 0 1.5px,transparent 1.5px 24px);
+    animation:sltBreathe 5s ease-in-out infinite; pointer-events:none;
+  }
+  .name-card::after{content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:linear-gradient(180deg,var(--slt-lime),var(--slt-green));}
+  @keyframes sltBreathe{0%,100%{transform:scale(1); opacity:.7;}50%{transform:scale(1.14); opacity:1;}}
+
+  /* consent cards */
+  .grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr)); gap:14px; margin-top:10px;}
+  .card{
+    padding:16px 18px 10px; border-radius:14px; border:1px solid var(--border);
+    background:rgba(255,255,255,.92); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    box-shadow:0 1px 2px rgba(7,59,122,.06),0 10px 22px -16px rgba(7,59,122,.35);
+    animation:sltCardIn .5s cubic-bezier(.2,.7,.2,1) backwards;
+    transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;
+  }
+  .card[data-accepted="1"]{box-shadow:inset 0 3px 0 var(--slt-green),0 10px 22px -16px rgba(7,59,122,.35);}
+  .card:not(.locked):hover{transform:translateY(-3px); border-color:rgba(10,122,214,.4); box-shadow:0 1px 2px rgba(7,59,122,.06),0 16px 28px -16px rgba(10,92,184,.5);}
+  .card[data-accepted="1"]:not(.locked):hover{box-shadow:inset 0 3px 0 var(--slt-green),0 16px 28px -16px rgba(10,92,184,.5);}
+  .card.locked{background:rgba(238,243,249,.85);}
+  .card-top h3{font-size:15px; line-height:1.3; margin:0 0 2px;}
+  .card-top .sub{font-size:12.5px;}
+  .card-foot{margin-top:12px; padding-top:9px; min-height:36px; border-top:1px solid #e6eef7;}
+  .stamp,.lock-tag{font-size:12px;}
+  .view-btn{font-size:13px; transition:color .2s;}
+  .view-btn:hover{color:var(--slt-sky); text-decoration:none;}
+  .card:nth-child(1){animation-delay:.04s}.card:nth-child(2){animation-delay:.10s}.card:nth-child(3){animation-delay:.16s}
+  .card:nth-child(4){animation-delay:.22s}.card:nth-child(5){animation-delay:.28s}.card:nth-child(6){animation-delay:.34s}
+  .card:nth-child(n+7){animation-delay:.40s}
+  @keyframes sltCardIn{from{opacity:0; transform:translateY(10px);}to{opacity:1; transform:none;}}
+
+  /* toggle switch (smaller) */
+  .switch{flex:0 0 46px; width:46px; height:26px; border-radius:14px; background:#c3d0e0; transition:background .25s ease,box-shadow .25s ease;}
+  .switch::after{top:3px; left:3px; width:20px; height:20px; transition:left .25s cubic-bezier(.3,.7,.3,1.2);}
+  .switch.on{background:linear-gradient(135deg,#58bf3f,var(--slt-green));}
+  .switch.on::after{left:23px;}
+  .switch:not(:disabled):hover{box-shadow:0 0 0 4px rgba(10,122,214,.12);}
+  .switch:focus-visible,.top-btn:focus-visible,.view-btn:focus-visible,.primary-btn:focus-visible,.link-btn:focus-visible{outline:2px solid var(--slt-sky); outline-offset:2px;}
+
+  /* loading + error */
+  #loadingMsg::before{
+    content:""; display:inline-block; width:14px; height:14px; margin-right:8px; vertical-align:-2px;
+    border:2px solid rgba(10,122,214,.25); border-top-color:var(--slt-sky); border-radius:50%; animation:sltSpin .8s linear infinite;
+  }
+  @keyframes sltSpin{to{transform:rotate(360deg);}}
+  .error{padding:10px 12px; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; line-height:1.45;}
+
+  /* modals */
+  .modal{background:rgba(7,40,84,.45); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);}
+  .modal.open{animation:sltFade .2s ease;}
+  .modal-card{padding:24px; border-radius:18px; max-width:440px; box-shadow:0 30px 70px -24px rgba(7,59,122,.55);}
+  .modal.open .modal-card{animation:sltPop .3s cubic-bezier(.2,.8,.2,1);}
+  .modal-card::before{content:""; position:absolute; left:0; right:0; top:0; height:4px; border-radius:18px 18px 0 0; background:linear-gradient(90deg,var(--slt-blue),var(--slt-lime));}
+  .modal-card h2{font-size:17px;}
+  .modal-card h2::before{display:none;}
+  .sub-p{font-size:13px;}
+  .modal-close{transition:background .2s;} .modal-close:hover{background:#eef5fc;}
+  .otp-row{gap:6px;}
+  .otp-row input{width:clamp(34px,11vw,42px); height:46px; font-size:18px; border-radius:9px;}
+  .primary-btn{font-size:14px; border-radius:10px; background:linear-gradient(135deg,var(--slt-blue),var(--slt-sky)); transition:filter .2s,transform .15s,box-shadow .2s; box-shadow:0 8px 16px -10px rgba(10,92,184,.8);}
+  .primary-btn:hover{filter:brightness(1.08);}
+  .primary-btn:active{transform:scale(.98);}
+  .success-icon{width:54px; height:54px; font-size:26px; animation:sltPop .45s cubic-bezier(.2,.9,.3,1.4);}
+  @keyframes sltFade{from{opacity:0;}to{opacity:1;}}
+  @keyframes sltPop{from{opacity:0; transform:translateY(8px) scale(.96);}to{opacity:1; transform:none;}}
+
+  /* small screens */
+  @media (max-width:600px){
+    body{font-size:13.5px;}
+    .brand{font-size:15px;}
+    .top-btn{padding:6px 10px;}
+    .name-card{padding:14px 16px;}
+    .modal{padding:12px;}
+    .modal-card{padding:20px 16px;}
+  }
+  @media (max-width:420px){ .detail-list{grid-template-columns:1fr;} }
+
+  /* respect reduced-motion settings */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important; transition:none !important;}
+  }
 </style>
 </head>
 <body>
@@ -168,13 +317,11 @@
 
 <script>
   // =========================================================
-  // CONFIG  (ConsentHub v2 integration API, MySLT = internal recipient)
-  // These are same-origin paths. Your proxy.js / server.js must forward them to
-  // ConsentHub and add the header  x-api-key: <CMS_API_KEY from .env>
-  // so the API key never reaches the browser.
+  // CONFIG  (same-origin paths handled by server.js, which talks to ConsentHub
+  // with the x-api-key from .env. Open this page from http://localhost:5500)
   // =========================================================
-  const CONSENTS_GET_URL = '/api/v2/integration/consents/customer/{customerId}';
-  const EVENTS_URL       = '/api/v2/integration/consents/events';
+  const CONSENTS_GET_URL = '/api/v1/customer/consents';
+  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{code}';
   const OTP_SEND_URL     = '/api/v1/customer/otp/send';
   const OTP_VERIFY_URL   = '/api/v1/customer/otp/verify';
   const EVENT_CHANNEL    = 'web';
@@ -194,9 +341,7 @@
   let currentLang = (() => { try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; } })();
   let lastLoadedList = [];
   let currentItem = null;
-  let currentConsentId = null;
   let currentConsentCode = null;
-  let otpSentAt = '';
 
   // =========================================================
   // helpers
@@ -208,17 +353,6 @@
   const isNo  = v => v === false || v === 0 || ['false', 'n', 'no', '0'].includes(String(v).toLowerCase());
 
   function getToken() { return sessionStorage.getItem('customerToken') || ''; }
-
-  // Customer id for the integration API (e.g. CUST67890).
-  // Login should save it: sessionStorage.setItem('customerId', ...). Falls back to the token payload.
-  function getCustomerId() {
-    const saved = sessionStorage.getItem('customerId');
-    if (saved) return saved;
-    try {
-      const payload = JSON.parse(atob(getToken().split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      return payload.customerId || payload.customer_id || payload.sub || '';
-    } catch (_) { return ''; }
-  }
 
   // "12 Oct 2026, 13:38"
   function fmtDateTime(v) {
@@ -235,13 +369,18 @@
     return isNaN(d) ? String(v) : d.toLocaleDateString('en-GB');
   }
 
-  // turns ["A","B"] or [{elementName:"A"}] or "A" into "A, B"
+  // turns ["A","B"] or [{elementName:"A"}] or "A" or {EN:[...],SI:[...]} into "A, B"
   function names(v) {
-    if (!v) return '';
+    if (v === undefined || v === null || v === '') return '';
     if (typeof v === 'string') return v;
-    if (!Array.isArray(v)) return pick(v, ['name', 'elementName', 'scopeName', 'categoryName', 'actionName']) || '';
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (!Array.isArray(v)) {
+      if (v[currentLang] !== undefined) return names(v[currentLang]);
+      if (v.EN !== undefined) return names(v.EN);
+      return pick(v, ['name', 'elementName', 'scopeName', 'categoryName', 'actionName', 'title', 'label']) || '';
+    }
     return v.map(x => typeof x === 'string' ? x
-      : pick(x, ['elementName', 'scopeName', 'categoryName', 'actionName', 'name', 'code'])).filter(Boolean).join(', ');
+      : pick(x, ['elementName', 'scopeName', 'categoryName', 'actionName', 'name', 'title', 'label', 'code'])).filter(Boolean).join(', ');
   }
 
   function extractList(json) {
@@ -269,7 +408,7 @@
 
   function extractCustomerName(json) {
     const d = (json && json.data) || json || {};
-    const c = d.customer || json.customer || {};
+    const c = (d && d.customer) || (json && json.customer) || {};
     return pick(d, ['customerName', 'fullName', 'name']) || pick(c, ['customerName', 'fullName', 'name'])
       || sessionStorage.getItem('customerName') || '';
   }
@@ -322,9 +461,11 @@
       consentType: pick(merged, ['categoryName', 'consentType', 'category', 'dataCategoryName']),
       purposeName: pick(merged, ['purposeName', 'purpose']),
       scopeName: names(pick(merged, ['scopes', 'scopeNames', 'scopeName'])),
-      dataElements: names(pick(merged, ['dataElements', 'elements', 'dataElementNames'])),
+      dataElements: names(pick(merged, ['data', 'dataElements', 'elements', 'dataElementNames'])),
+      actionText: names(pick(merged, ['action', 'actions'])),
+      usedBy: names(pick(merged, ['usedBy', 'recipients'])),
       legalBasis: names(pick(merged, ['legalBasisName', 'legalBasis', 'legalBasisCode'])),
-      validity: names(pick(merged, ['validityName', 'validity', 'validityCode'])),
+      validity: names(pick(merged, ['validFor', 'validityName', 'validity', 'validityCode'])),
       channel: pick(merged, ['channelCode', 'channel', 'grantChannel']),
       grantedOn: pick(merged, ['consentDateTime', 'grantedAt', 'grantedDate', 'updatedDate']),
       withdrawnOn: pick(merged, ['withdrawalDateTime', 'withdrawnAt', 'revokedAt']),
@@ -404,7 +545,8 @@
     const row = (l, v, wide) => v ? `<div class="detail${wide ? ' wide' : ''}"><span class="dlabel">${esc(l)}</span><span class="dval">${esc(v)}</span></div>` : '';
     document.getElementById('detailList').innerHTML = [
       row('Consent Type', c.consentType), row('Purpose', c.purposeName), row('Scope', c.scopeName),
-      row('Version', c.version), row('Data used', c.dataElements, true), row('Legal basis', c.legalBasis),
+      row('Version', c.version), row('Data used', c.dataElements, true), row('What we do', c.actionText, true),
+      row('Used by', c.usedBy, true), row('Legal basis', c.legalBasis),
       row('Valid for', c.validity), row('Channel', c.channel),
       row('Status', c.status.replace(/_/g, ' ').toLowerCase()),
       row('Responded On', fmtDateTime(c.grantedOn)), row('Effective From', fmtDate(c.effectiveFrom)),
@@ -416,7 +558,7 @@
   detailPanel.addEventListener('click', e => { if (e.target === detailPanel) detailPanel.classList.remove('open'); });
 
   // =========================================================
-  // load consents
+  // load consents (server.js works out the customer from the login token)
   // =========================================================
   async function loadConsents() {
     const loadingMsg = document.getElementById('loadingMsg');
@@ -426,14 +568,13 @@
     try {
       const token = getToken();
       if (!token) { goToLogin(); return; }
-      const customerId = getCustomerId();
-      if (!customerId) throw new Error('No customer id found in the session');
-      const res = await fetch(CONSENTS_GET_URL.replace('{customerId}', encodeURIComponent(customerId)), {
+      const res = await fetch(CONSENTS_GET_URL, {
         method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
       });
       if (res.status === 401) { goToLogin(); return; }
-      if (!res.ok) throw new Error('Request failed with status ' + res.status);
-      const json = await res.json();
+      let json = {};
+      try { json = await res.json(); } catch (_) {}
+      if (!res.ok) throw new Error(json.message || ('Request failed with status ' + res.status));
       lastLoadedList = extractList(json);
       document.getElementById('customerName').textContent = extractCustomerName(json) || 'My Account';
       renderConsentList(lastLoadedList);
@@ -442,27 +583,19 @@
       loadingMsg.style.display = 'none';
       loadErrorMsg.style.display = 'block';
       loadErrorMsg.textContent = "Couldn't load consents: " + err.message +
-        '. Check the URL, your login, and that the server allows this page (CORS).';
+        '. Make sure this page is opened from http://localhost:5500 and check the server terminal for details.';
     }
   }
 
   // =========================================================
-  // Record accept / decline event in ConsentHub
-  // POST /api/v2/integration/consents/events
+  // Save accept / decline.  server.js checks the verified OTP,
+  // then sends the event to ConsentHub.
   // =========================================================
-  async function saveChoice(consentCode, action, verification) {
-    const body = {
-      customerId: getCustomerId(),
-      consentCode,
-      action,                       // 'accept' | 'decline'
-      channel: EVENT_CHANNEL
-    };
-    if (verification) body.verification = verification;
-
-    const res = await fetch(EVENTS_URL, {
-      method: 'POST',
+  async function saveChoice(consentCode, action) {
+    const res = await fetch(CONSENT_SAVE_URL.replace('{code}', encodeURIComponent(consentCode)), {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ action, channel: EVENT_CHANNEL })
     });
     if (res.status === 401) { goToLogin(); return; }
     if (!res.ok) {
@@ -509,13 +642,11 @@
     document.getElementById('contactError').textContent = '';
     document.getElementById('otpError').textContent = '';
     otpReference = '';
-    otpSentAt = '';
     sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send OTP';
     confirmOtpBtn.disabled = false; confirmOtpBtn.textContent = 'Confirm';
   }
 
   function openVerify(item) {
-    currentConsentId = item.dataset.consentId;
     currentConsentCode = item.dataset.consentCode;
     currentItem = item.dataset.consentName;
     resetVerifyPanel();
@@ -545,10 +676,10 @@
 
     sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Sending…';
     try {
-      const json = await postJson(OTP_SEND_URL, { channel: 'EMAIL', email, consentId: currentConsentId, consentCode: currentConsentCode });
+      // server.js reads the consent code from "consentId"
+      const json = await postJson(OTP_SEND_URL, { channel: 'EMAIL', email, consentId: currentConsentCode });
       const d = json.data || json;
       otpReference = d.reference || d.otpId || d.requestId || '';
-      otpSentAt = new Date().toISOString();           // proof sent to ConsentHub
       contactValue = email;
       document.getElementById('otpSentTo').textContent = "We've sent a 6-digit code to " + email + ". Enter it below to confirm.";
       contactBox.style.display = 'none';
@@ -571,14 +702,8 @@
 
     confirmOtpBtn.disabled = true; confirmOtpBtn.textContent = 'Verifying…';
     try {
-      await postJson(OTP_VERIFY_URL, { channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId, consentCode: currentConsentCode });
-      const otpVerifiedAt = new Date().toISOString();
-      await saveChoice(currentConsentCode, 'accept', {
-        method: 'EMAIL_OTP',
-        email: contactValue,
-        otpSentAt: otpSentAt || otpVerifiedAt,
-        otpVerifiedAt
-      });
+      await postJson(OTP_VERIFY_URL, { channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentCode });
+      await saveChoice(currentConsentCode, 'accept');
       clearInterval(resendTimer);
       otpSection.classList.remove('open');
       document.getElementById('successItemName').textContent = currentItem || '';
