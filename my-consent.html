@@ -45,8 +45,14 @@
   .switch::after{content:''; position:absolute; top:4px; left:4px; width:28px; height:28px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s;}
   .switch.on{background:var(--on);}
   .switch.on::after{left:34px;}
-  .switch:disabled{cursor:not-allowed; opacity:.6;}
   .switch:focus-visible{outline:3px solid rgba(47,127,224,.4);}
+
+  /* LOCKED (mandatory / non-revocable): blurred toggle, cannot be touched */
+  .card.locked{background:#f1f5f9;}
+  .card.locked .switch{
+    filter:blur(1.6px); opacity:.45; pointer-events:none; cursor:not-allowed; user-select:none;
+  }
+  .lock-tag{color:var(--faint); font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:6px;}
 
   .empty-msg{color:var(--faint); font-size:14px; padding:10px 2px;}
   .error{color:var(--danger); font-size:13px; padding:8px 2px;}
@@ -72,6 +78,7 @@
   .error-msg{color:var(--danger); font-size:12px; margin:0 0 10px; min-height:14px;}
   .success-icon{width:60px; height:60px; border-radius:50%; background:#dcfce7; color:var(--on); font-size:28px; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;}
   .detail-list{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; margin-top:6px;}
+  .detail.wide{grid-column:1 / -1;}
   .detail .dlabel{display:block; color:var(--faint); font-size:10px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:2px;}
   .detail .dval{font-weight:600; font-size:13px; overflow-wrap:anywhere;}
 
@@ -161,13 +168,17 @@
 
 <script>
   // =========================================================
-  // CONFIG
+  // CONFIG  (ConsentHub v2 integration API, MySLT = internal recipient)
+  // These are same-origin paths. Your proxy.js / server.js must forward them to
+  // ConsentHub and add the header  x-api-key: <CMS_API_KEY from .env>
+  // so the API key never reaches the browser.
   // =========================================================
-  const CONSENTS_GET_URL = '/api/v1/customer/consents';
-  const OTP_SEND_URL   = '/api/v1/customer/otp/send';
-  const OTP_VERIFY_URL = '/api/v1/customer/otp/verify';
-  const CONSENT_SAVE_URL = '/api/v1/customer/consents/{id}';
-  const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION'];
+  const CONSENTS_GET_URL = '/api/v2/integration/consents/customer/{customerId}';
+  const EVENTS_URL       = '/api/v2/integration/consents/events';
+  const OTP_SEND_URL     = '/api/v1/customer/otp/send';
+  const OTP_VERIFY_URL   = '/api/v1/customer/otp/verify';
+  const EVENT_CHANNEL    = 'web';
+  const MANDATORY_CONSENT_CODES = ['TNC_001', 'PRIV_001', 'TNC_FAIR_USE', 'PRIV_DATA_RETENTION']; // fallback only
 
   // TEMPORARY fallback descriptions
   const DESCRIPTION_FALLBACK = {
@@ -178,20 +189,36 @@
   };
 
   // =========================================================
-  // STATE (declare before use)
+  // STATE
   // =========================================================
   let currentLang = (() => { try { return localStorage.getItem('myslt-lang') || 'EN'; } catch (_) { return 'EN'; } })();
   let lastLoadedList = [];
   let currentItem = null;
   let currentConsentId = null;
+  let currentConsentCode = null;
+  let otpSentAt = '';
 
   // =========================================================
   // helpers
   // =========================================================
   const esc = s => String(s ?? '').replace(/[&<>"']/g,
     c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const pick = (o, keys) => { for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k]; return ''; };
+  const pick = (o, keys) => { for (const k of keys) if (o && o[k] !== undefined && o[k] !== null) return o[k]; return ''; };
+  const isYes = v => v === true || v === 1 || ['true', 'y', 'yes', '1'].includes(String(v).toLowerCase());
+  const isNo  = v => v === false || v === 0 || ['false', 'n', 'no', '0'].includes(String(v).toLowerCase());
+
   function getToken() { return sessionStorage.getItem('customerToken') || ''; }
+
+  // Customer id for the integration API (e.g. CUST67890).
+  // Login should save it: sessionStorage.setItem('customerId', ...). Falls back to the token payload.
+  function getCustomerId() {
+    const saved = sessionStorage.getItem('customerId');
+    if (saved) return saved;
+    try {
+      const payload = JSON.parse(atob(getToken().split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      return payload.customerId || payload.customer_id || payload.sub || '';
+    } catch (_) { return ''; }
+  }
 
   // "12 Oct 2026, 13:38"
   function fmtDateTime(v) {
@@ -206,6 +233,15 @@
     if (!v) return '';
     const d = new Date(v);
     return isNaN(d) ? String(v) : d.toLocaleDateString('en-GB');
+  }
+
+  // turns ["A","B"] or [{elementName:"A"}] or "A" into "A, B"
+  function names(v) {
+    if (!v) return '';
+    if (typeof v === 'string') return v;
+    if (!Array.isArray(v)) return pick(v, ['name', 'elementName', 'scopeName', 'categoryName', 'actionName']) || '';
+    return v.map(x => typeof x === 'string' ? x
+      : pick(x, ['elementName', 'scopeName', 'categoryName', 'actionName', 'name', 'code'])).filter(Boolean).join(', ');
   }
 
   function extractList(json) {
@@ -231,7 +267,6 @@
     return found.sort((a, b) => b.length - a.length)[0] || '';
   }
 
-  // Customer name: from API response if present, else from session, else blank
   function extractCustomerName(json) {
     const d = (json && json.data) || json || {};
     const c = d.customer || json.customer || {};
@@ -263,7 +298,7 @@
   const panelOther = document.getElementById('panelOther');
 
   // =========================================================
-  // normalise API record
+  // normalise API record (works for catalog rows and customer-consent rows)
   // =========================================================
   function normalise(r) {
     const scope = (r.scope && typeof r.scope === 'object') ? r.scope
@@ -273,29 +308,35 @@
     const textForLang = (r.texts && (r.texts[currentLang] || r.texts.EN)) || null;
 
     const scopeId = pick(merged, ['scopeId', 'scope_id', 'consentScopeId']);
-    const code = pick(merged, ['consentCode', 'scopeCode', 'code']);
+    const code = pick(merged, ['consentCode', 'code', 'scopeCode']);
     const name = textForLang?.title || pick(merged, ['consentName', 'scopeName', 'name', 'title']) || code;
-    const status = String(pick(merged, ['status', 'consentStatus', 'customerStatus'])).toUpperCase();
-    const active = pick(merged, ['active', 'isActive']);
-    let mandatory = pick(merged, ['mandatory', 'isMandatory']);
+    const status = String(pick(merged, ['consentStatus', 'status', 'customerStatus'])).toUpperCase();
+
+    let mandatory = pick(merged, ['isMandatory', 'mandatory']);
     if (mandatory === '') mandatory = MANDATORY_CONSENT_CODES.includes(code);
+    const revocableRaw = pick(merged, ['isRevocable', 'revocable']);
+
     return {
       id: pick(merged, ['customerConsentId', 'consentId', 'id']) || scopeId,
       scopeId, code, name, status,
-      consentType: pick(merged, ['categoryName', 'consentType', 'category']),
+      consentType: pick(merged, ['categoryName', 'consentType', 'category', 'dataCategoryName']),
       purposeName: pick(merged, ['purposeName', 'purpose']),
+      scopeName: names(pick(merged, ['scopes', 'scopeNames', 'scopeName'])),
+      dataElements: names(pick(merged, ['dataElements', 'elements', 'dataElementNames'])),
+      legalBasis: names(pick(merged, ['legalBasisName', 'legalBasis', 'legalBasisCode'])),
+      validity: names(pick(merged, ['validityName', 'validity', 'validityCode'])),
       channel: pick(merged, ['channelCode', 'channel', 'grantChannel']),
-      grantedOn: pick(merged, ['consentDateTime', 'grantedAt', 'grantedDate']),
+      grantedOn: pick(merged, ['consentDateTime', 'grantedAt', 'grantedDate', 'updatedDate']),
       withdrawnOn: pick(merged, ['withdrawalDateTime', 'withdrawnAt', 'revokedAt']),
-      active: active === '' ? null : (active === true || active === 'true' || active === 'Active'),
-      mandatory: mandatory === true || mandatory === 1 || ['true', 'y', 'yes', '1'].includes(String(mandatory).toLowerCase()),
+      mandatory: isYes(mandatory),
+      revocable: !isNo(revocableRaw),
       description: (() => {
         if (textForLang?.statement) return textForLang.statement;
         const fromApi = findDescription(r);
         const fb = DESCRIPTION_FALLBACK[code] || DESCRIPTION_FALLBACK[scopeId] || '';
         return fb.length > fromApi.length ? fb : fromApi;
       })(),
-      version: pick(merged, ['version', 'scopeVersion', 'currentVersion']),
+      version: pick(merged, ['consentVersion', 'version', 'scopeVersion', 'currentVersion']),
       effectiveFrom: pick(merged, ['validFrom', 'effectiveFrom', 'consentDateTime', 'grantedAt', 'createdAt']),
       effectiveTo: pick(merged, ['validTo', 'effectiveTo', 'expiresAt'])
     };
@@ -307,17 +348,22 @@
   function buildConsentCard(raw, idx) {
     const c = normalise(raw);
     const accepted = ['GRANTED', 'ACTIVE', 'ACCEPTED'].includes(c.status);
+    // locked = cannot be touched: mandatory, or already given and not revocable
+    const locked = c.mandatory || (accepted && !c.revocable);
 
     const item = document.createElement('div');
-    item.className = 'card';
+    item.className = 'card' + (locked ? ' locked' : '');
     item.dataset.consentId = c.id;
+    item.dataset.consentCode = c.code;
     item.dataset.consentName = c.name;
     item.dataset.mandatory = c.mandatory ? '1' : '0';
+    item.dataset.locked = locked ? '1' : '0';
     item.dataset.index = idx;
     item.dataset.accepted = accepted ? '1' : '0';
 
     const sub = c.consentType || c.purposeName;
     const stamp = accepted ? fmtDateTime(c.grantedOn) : '';
+    const lockText = c.mandatory ? '🔒 Required' : '🔒 Cannot be withdrawn';
 
     item.innerHTML = `
       <div class="card-top">
@@ -326,10 +372,11 @@
           ${sub ? `<div class="sub">${esc(sub)}</div>` : ''}
         </div>
         <button class="switch ${accepted ? 'on' : ''}" role="switch" aria-checked="${accepted}"
-          aria-label="${esc(c.name)}" ${c.mandatory ? 'disabled title="This consent is mandatory"' : ''}></button>
+          aria-label="${esc(c.name)}" tabindex="${locked ? '-1' : '0'}"
+          ${locked ? 'disabled aria-disabled="true" title="This consent is locked"' : ''}></button>
       </div>
       <div class="card-foot">
-        ${stamp ? `<span class="stamp">${esc(stamp)}</span>` : ''}
+        ${locked ? `<span class="lock-tag">${lockText}</span>` : (stamp ? `<span class="stamp">${esc(stamp)}</span>` : '')}
         <button class="view-btn" data-view="1">View details</button>
       </div>`;
     item._data = c;
@@ -354,10 +401,12 @@
   function openDetails(c) {
     document.getElementById('detailTitle').textContent = c.name;
     document.getElementById('detailDesc').textContent = c.description || '';
-    const row = (l, v) => v ? `<div class="detail"><span class="dlabel">${esc(l)}</span><span class="dval">${esc(v)}</span></div>` : '';
+    const row = (l, v, wide) => v ? `<div class="detail${wide ? ' wide' : ''}"><span class="dlabel">${esc(l)}</span><span class="dval">${esc(v)}</span></div>` : '';
     document.getElementById('detailList').innerHTML = [
-      row('Consent Type', c.consentType), row('Purpose', c.purposeName), row('Version', c.version),
-      row('Channel', c.channel), row('Status', c.status.replace(/_/g, ' ').toLowerCase()),
+      row('Consent Type', c.consentType), row('Purpose', c.purposeName), row('Scope', c.scopeName),
+      row('Version', c.version), row('Data used', c.dataElements, true), row('Legal basis', c.legalBasis),
+      row('Valid for', c.validity), row('Channel', c.channel),
+      row('Status', c.status.replace(/_/g, ' ').toLowerCase()),
       row('Responded On', fmtDateTime(c.grantedOn)), row('Effective From', fmtDate(c.effectiveFrom)),
       row('Effective To', c.effectiveTo ? fmtDate(c.effectiveTo) : '—'), row('Withdrawn On', fmtDateTime(c.withdrawnOn))
     ].join('');
@@ -377,7 +426,9 @@
     try {
       const token = getToken();
       if (!token) { goToLogin(); return; }
-      const res = await fetch(CONSENTS_GET_URL, {
+      const customerId = getCustomerId();
+      if (!customerId) throw new Error('No customer id found in the session');
+      const res = await fetch(CONSENTS_GET_URL.replace('{customerId}', encodeURIComponent(customerId)), {
         method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }
       });
       if (res.status === 401) { goToLogin(); return; }
@@ -396,16 +447,29 @@
   }
 
   // =========================================================
-  // Accept / Decline
+  // Record accept / decline event in ConsentHub
+  // POST /api/v2/integration/consents/events
   // =========================================================
-  async function saveChoice(consentId, choice) {
-    const res = await fetch(CONSENT_SAVE_URL.replace('{id}', encodeURIComponent(consentId)), {
-      method: 'PUT',
+  async function saveChoice(consentCode, action, verification) {
+    const body = {
+      customerId: getCustomerId(),
+      consentCode,
+      action,                       // 'accept' | 'decline'
+      channel: EVENT_CHANNEL
+    };
+    if (verification) body.verification = verification;
+
+    const res = await fetch(EVENTS_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + getToken() },
-      body: JSON.stringify({ action: choice, channel: 'web', source: 'MYSLT_PORTAL' })
+      body: JSON.stringify(body)
     });
     if (res.status === 401) { goToLogin(); return; }
-    if (!res.ok) throw new Error('Save failed (' + res.status + ')');
+    if (!res.ok) {
+      let msg = 'Save failed (' + res.status + ')';
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch (_) {}
+      throw new Error(msg);
+    }
   }
 
   const verifyForLabel = document.getElementById('verifyForLabel');
@@ -445,12 +509,14 @@
     document.getElementById('contactError').textContent = '';
     document.getElementById('otpError').textContent = '';
     otpReference = '';
+    otpSentAt = '';
     sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Send OTP';
     confirmOtpBtn.disabled = false; confirmOtpBtn.textContent = 'Confirm';
   }
 
   function openVerify(item) {
     currentConsentId = item.dataset.consentId;
+    currentConsentCode = item.dataset.consentCode;
     currentItem = item.dataset.consentName;
     resetVerifyPanel();
     verifyForLabel.textContent = 'To accept "' + currentItem + '", we will email a one-time code to confirm it is you.';
@@ -479,9 +545,10 @@
 
     sendOtpBtn.disabled = true; sendOtpBtn.textContent = 'Sending…';
     try {
-      const json = await postJson(OTP_SEND_URL, { channel: 'EMAIL', email, consentId: currentConsentId });
+      const json = await postJson(OTP_SEND_URL, { channel: 'EMAIL', email, consentId: currentConsentId, consentCode: currentConsentCode });
       const d = json.data || json;
       otpReference = d.reference || d.otpId || d.requestId || '';
+      otpSentAt = new Date().toISOString();           // proof sent to ConsentHub
       contactValue = email;
       document.getElementById('otpSentTo').textContent = "We've sent a 6-digit code to " + email + ". Enter it below to confirm.";
       contactBox.style.display = 'none';
@@ -504,8 +571,14 @@
 
     confirmOtpBtn.disabled = true; confirmOtpBtn.textContent = 'Verifying…';
     try {
-      await postJson(OTP_VERIFY_URL, { channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId });
-      await saveChoice(currentConsentId, 'accept');
+      await postJson(OTP_VERIFY_URL, { channel: 'EMAIL', email: contactValue, otp: code, reference: otpReference, consentId: currentConsentId, consentCode: currentConsentCode });
+      const otpVerifiedAt = new Date().toISOString();
+      await saveChoice(currentConsentCode, 'accept', {
+        method: 'EMAIL_OTP',
+        email: contactValue,
+        otpSentAt: otpSentAt || otpVerifiedAt,
+        otpVerifiedAt
+      });
       clearInterval(resendTimer);
       otpSection.classList.remove('open');
       document.getElementById('successItemName').textContent = currentItem || '';
@@ -555,12 +628,13 @@
 
     const sw = e.target.closest('.switch');
     if (!sw || sw.disabled) return;
+    if (item.dataset.locked === '1') return;            // mandatory / non-revocable: untouchable
 
     if (item.dataset.accepted !== '1') { openVerify(item); return; }  // turning ON
 
     sw.disabled = true;                                                // turning OFF
     try {
-      await saveChoice(item.dataset.consentId, 'decline');
+      await saveChoice(item.dataset.consentCode, 'decline');
       await loadConsents();
     } catch (err) {
       sw.disabled = false;
