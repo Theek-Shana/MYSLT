@@ -8,6 +8,8 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 const http = require('http'), https = require('https'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 
 // ---------------------------------------------------------------- .env loader (no dependency)
+// Values in .env WIN over Windows/system environment variables, so a stale system
+// variable can no longer silently replace the key you put in .env.
 (function loadEnv() {
   try {
     const txt = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
@@ -15,7 +17,7 @@ const http = require('http'), https = require('https'), fs = require('fs'), path
       const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
       if (!m || line.trim().startsWith('#')) continue;
       const val = m[2].replace(/^["']|["']$/g, '');
-      if (process.env[m[1]] === undefined) process.env[m[1]] = val;
+      process.env[m[1]] = val;
     }
   } catch (_) { /* no .env file — rely on real environment variables */ }
 })();
@@ -23,12 +25,16 @@ const http = require('http'), https = require('https'), fs = require('fs'), path
 // ---------------------------------------------------------------- config
 const TARGET = 'dpdlab1.slt.lk', TARGET_PORT = 9000, PORT = process.env.PORT || 5500;
 const CMS_API_BASE = process.env.CMS_API_BASE || 'https://dpdlab1.slt.lk:9000';
-const CMS_API_KEY = process.env.CMS_API_KEY;   // NEVER hardcode this. Put it in .env
+const CMS_API_KEY = (process.env.CMS_API_KEY || '').trim();   // NEVER hardcode this. Put it in .env
+// TESTING ONLY: set CMS_FORCE_CUSTOMER_ID=CUST10013 in .env to ignore the id derived from the SLT login.
+const CMS_FORCE_CUSTOMER_ID = (process.env.CMS_FORCE_CUSTOMER_ID || '').trim();
 
 if (!CMS_API_KEY) {
-  console.error('Missing CMS_API_KEY. Create a .env file next to server.js containing:\nCMS_API_KEY=your-new-key');
+  console.error('Missing CMS_API_KEY. Create a .env file next to server.js containing:\nCMS_API_KEY=your-key');
   process.exit(1);
 }
+console.log('CMS key loaded: length ' + CMS_API_KEY.length + ', ends with "' + CMS_API_KEY.slice(-3) + '" (compare with Postman myslt_api_key)');
+if (CMS_FORCE_CUSTOMER_ID) console.warn('CMS_FORCE_CUSTOMER_ID is set: every login will use ' + CMS_FORCE_CUSTOMER_ID + ' (testing only).');
 
 const types = {
   '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
@@ -76,7 +82,7 @@ function customerFromToken(auth) {
     const keys = ['customerId', 'customer_id', 'custId', 'cid', 'sub', 'nameid', 'id', 'userId', 'user_id',
       'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
       'unique_name', 'preferred_username', 'username'];
-    for (const k of keys) if (p[k]) return { id: String(p[k]), claims: Object.keys(p) };
+    for (const k of keys) if (p[k]) return { id: String(p[k]), claims: Object.keys(p), from: k };
     return { id: null, claims: Object.keys(p) };
   } catch (_) { return { id: null, claims: [] }; }
 }
@@ -96,14 +102,24 @@ function upstreamGet(p, auth) {
   });
 }
 
+const loggedIds = new Set();   // so the "resolved id" line prints once per distinct id, not on every request
+
 async function authenticate(auth) {
   const up = await upstreamGet('/api/v1/customer/consents', auth);
   if (up.status !== 200) return { ok: false, status: up.status };
   let json; try { json = JSON.parse(up.body.toString('utf8')); } catch (_) { return { ok: false, status: 502 }; }
   const list = findArray(json) || [];
   const fromRecord = list.map(r => pick(r, ['customerId', 'partyId'])).find(Boolean);
-  const id = fromRecord || customerFromToken(auth).id;
-  if (!id) return { ok: false, status: 400 };
+  const tok = customerFromToken(auth);
+  let id = fromRecord || tok.id;
+  let source = fromRecord ? 'SLT consents record' : (tok.id ? 'token claim "' + tok.from + '"' : 'none');
+  if (CMS_FORCE_CUSTOMER_ID) { id = CMS_FORCE_CUSTOMER_ID; source = 'CMS_FORCE_CUSTOMER_ID'; }
+  if (!id) {
+    console.error('Could not work out a customer id. SLT list had ' + list.length + ' record(s); token claims: ' + tok.claims.join(', '));
+    return { ok: false, status: 400 };
+  }
+  const logKey = id + '|' + source;
+  if (!loggedIds.has(logKey)) { loggedIds.add(logKey); console.log('Customer id resolved: ' + id + '  (from ' + source + ')'); }
   return { ok: true, customerId: String(id) };
 }
 
@@ -132,6 +148,11 @@ function cmsRequest(method, urlPath, body) {
     if (payload) r.write(payload);
     r.end();
   });
+}
+
+function explainCmsFailure(cms, customerId) {
+  if (cms.status === 401) console.error('  -> ConsentHub rejected CMS_API_KEY. Copy the current myslt_api_key from Postman into .env (do not regenerate it).');
+  else if (cms.status === 404) console.error('  -> ConsentHub has no customer "' + customerId + '". The id from the SLT login does not match a ConsentHub customer. Test with CMS_FORCE_CUSTOMER_ID=CUST10013 in .env.');
 }
 
 // ---------------------------------------------------------------- MongoDB: OTP request log
@@ -266,7 +287,7 @@ async function handleOtp(req, res, kind) {
     }
 
     for (const [ref, rec] of otpStore) if (rec.customerId === a.customerId && rec.consentCode === consentCode) otpStore.delete(ref);
-    otpStore.set(reference, { customerId: a.customerId, consentCode, email, salt, hash: hashOtp(otp, salt), expires: now + OTP_TTL_MS, attempts: 0, sentAt: now });
+    otpStore.set(reference, { customerId: a.customerId, consentCode, email, salt, hash: hashOtp(otp, salt), expires: now + OTP_TTL_MS, attempts: 0 });
     log.push(now); sendLog.set(key, log);
     await dbInsert({ reference, customerId: a.customerId, consentCode, email, channel: 'EMAIL', status: 'SENT',
       attempts: 0, requestedAt: new Date(now), expiresAt: new Date(now + OTP_TTL_MS), ...meta });
@@ -293,7 +314,7 @@ async function handleOtp(req, res, kind) {
   }
 
   otpStore.delete(reference);
-  verifiedStore.set(key, { exp: now + VERIFIED_TTL_MS, reference, email: rec.email, sentAt: rec.sentAt, verifiedAt: now });
+  verifiedStore.set(key, { exp: now + VERIFIED_TTL_MS, reference });
   await dbUpdate({ reference }, { $set: { status: 'VERIFIED', verifiedAt: new Date() }, $inc: { attempts: 1 } });
   return sendJson(res, 200, { success: true });
 }
@@ -328,11 +349,13 @@ async function handleList(req, res) {
 
   if (cms.status !== 200 || !cms.json?.success || !Array.isArray(cms.json.data)) {
     console.error('ConsentHub list error:', cms.status, JSON.stringify(cms.json));
+    explainCmsFailure(cms, a.customerId);
     return sendJson(res, 502, { message: 'ConsentHub returned an error (' + cms.status + ').' });
   }
 
-  // CMS sends card text in EN/SI/TA under c.texts, plus Data/Action/Used By/Valid For.
-  // my-consent.html picks the language; the flat fields below are the English fallback.
+  // CMS sends card text in EN/SI/TA under c.texts, plus Data/Action/Used By/Valid
+  // For instead of a version number. Everything is passed through so the page can
+  // switch language.
   const data = cms.json.data.map(c => {
     const en = c.texts?.EN || {};
     return {
@@ -378,15 +401,12 @@ async function handleSave(req, res, consentCode) {
   }
 
   let cms;
-  // On accept, tell CMS who confirmed and when (email + OTP sent/entered times — never the code) so it can keep the audit trail.
-  const proof = action === 'accept' ? verifiedStore.get(verifyKey) : null;
-  const event = { customerId: a.customerId, consentCode, action, channel, ipAddress: clientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 300) };
-  if (proof) event.verification = { method: 'EMAIL_OTP', email: proof.email, otpSentAt: new Date(proof.sentAt).toISOString(), otpVerifiedAt: new Date(proof.verifiedAt).toISOString() };
-  try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', event); }
+  try { cms = await cmsRequest('POST', '/api/v2/integration/consents/events', { customerId: a.customerId, consentCode, action, channel }); }
   catch (e) { return sendJson(res, 502, { message: 'Could not reach ConsentHub: ' + e.message }); }
 
   if (cms.status !== 200) {
     console.error('ConsentHub save error:', cms.status, JSON.stringify(cms.json));
+    explainCmsFailure(cms, a.customerId);
     return sendJson(res, cms.status, { message: cms.json?.message || 'ConsentHub rejected the request.' });
   }
   if (action === 'accept') {                                  // one verification = one accept
@@ -410,8 +430,6 @@ function forwardToSlt(req, res) {
 
 // ---------------------------------------------------------------- web server
 const server = http.createServer(async (req, res) => {
-  // hosted under /myslt (https://dpdlab1.slt.lk:9000/myslt) — accept the prefix locally too
-  if (req.url.startsWith('/myslt/')) req.url = req.url.slice('/myslt'.length);
   if (req.url.startsWith('/api/')) {
     try {
       if (await handleConsentApi(req, res)) return;
